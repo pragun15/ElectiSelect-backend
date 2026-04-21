@@ -1,0 +1,22 @@
+# --- Java & Maven ---
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+
+
+# --- IDEs ---
+.idea/
+*.iml
+*.iws
+out/
+
+# --- Operating System (Mac) ---
+.DS_Store
+.DS_Store?
+._*
+
+# --- Local Secrets ---
+.env
