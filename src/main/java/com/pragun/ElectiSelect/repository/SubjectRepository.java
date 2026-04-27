@@ -11,8 +11,12 @@ import java.util.Optional;
 
 public interface SubjectRepository extends JpaRepository<Subject, Long> {
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE) //Prevents race conditions
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM Subject s WHERE s.id = :id")
     Optional<Subject> findByIdWithLock(Long id);
-    List<Subject> findBySession_IsActiveTrueAndSession_Semester(int semester);
+
+    List<Subject> findBySession_IsActiveTrueAndSession_SemesterAndIsDeletedFalse(int semester);
+
+    List<Subject> findBySession_IsActiveTrueAndSession_SemesterAndSession_TypeAndIsDeletedFalse(int semester,
+            com.pragun.ElectiSelect.model.SessionType type);
 }

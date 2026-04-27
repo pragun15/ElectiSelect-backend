@@ -11,4 +11,6 @@ import java.util.List;
 @Repository
 public interface SessionRepository extends JpaRepository<Session, Long> {
     List<Session> findByIsActiveTrueAndSemesterAndType(int semester, SessionType type);
+    List<Session> findByIsActiveTrueAndType(SessionType type);
+    List<Session> findByIsActiveTrueAndSemester(int semester);
 }

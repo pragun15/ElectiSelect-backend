@@ -1,6 +1,8 @@
 package com.pragun.ElectiSelect.controller;
 
-import com.pragun.ElectiSelect.model.Subject;
+import com.pragun.ElectiSelect.model.ProfileResponse;
+import com.pragun.ElectiSelect.model.SubjectDTO;
+import com.pragun.ElectiSelect.model.User;
 import com.pragun.ElectiSelect.service.RegistrationService;
 import com.pragun.ElectiSelect.service.SubjectService;
 import com.pragun.ElectiSelect.service.UserService;
@@ -18,7 +20,7 @@ public class StudentController {
 
     private final RegistrationService registrationService;
     private final SubjectService subjectService;
-    private final UserService userService; // 👈 Replaced Repositories with UserService
+    private final UserService userService;
 
     public StudentController(RegistrationService registrationService,
                              SubjectService subjectService,
@@ -28,22 +30,24 @@ public class StudentController {
         this.userService = userService;
     }
 
-    @GetMapping("/available-subjects")
-    public ResponseEntity<List<Subject>> getSubjects(@AuthenticationPrincipal String email) {
-        // Business logic is now hidden inside services
-        int currentSemester = userService.getStudentSemester(email);
-        List<Subject> available = subjectService.getAvailableSubjectsForSemester(currentSemester);
+    @GetMapping("/profile")
+    public ResponseEntity<ProfileResponse> getProfile(@AuthenticationPrincipal String email) {
+        return ResponseEntity.ok(userService.getStudentProfile(email));
+    }
 
+    @GetMapping("/available-subjects")
+    public ResponseEntity<List<SubjectDTO>> getSubjects(@AuthenticationPrincipal String email) {
+        User student = userService.getUserByEmail(email);
+        int semester = userService.getStudentSemester(email);
+        List<SubjectDTO> available = subjectService.getAvailableOpenSubjectsForStudent(
+                semester, student.getDepartment());
         return ResponseEntity.ok(available);
     }
 
     @PostMapping("/register/{subjectId}")
-    public ResponseEntity<String> register(@AuthenticationPrincipal String email, @PathVariable Long subjectId) {
-        try {
-            registrationService.registerStudentForElective(email, subjectId);
-            return ResponseEntity.ok("Registration successful!");
-        } catch (Exception e) {
-            return ResponseEntity.status(400).body(e.getMessage());
-        }
+    public ResponseEntity<String> register(@AuthenticationPrincipal String email,
+                                           @PathVariable Long subjectId) {
+        registrationService.registerStudentForElective(email, subjectId);
+        return ResponseEntity.ok("Registration successful!");
     }
 }

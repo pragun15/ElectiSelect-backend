@@ -26,6 +26,13 @@ public class Subject {
     private int maxSeats;
     private int filled_seats = 0;
 
-    // Store restricted departments as a simple comma-separated string for now
+    // Comma-separated allowlist: if set (non-null, non-empty), ONLY these departments may select.
+    // Takes precedence over restrictedDepts — workflow.md §9, §10 step 4.
+    private String allowedDepts;
+
+    // Comma-separated blocklist: departments blocked from selecting.
+    // Only evaluated when allowedDepts is null/empty.
     private String restrictedDepts;
+
+    private boolean isDeleted = false;
 }

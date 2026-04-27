@@ -2,6 +2,7 @@ package com.pragun.ElectiSelect.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import java.time.LocalDateTime;
 
 @Entity
 @Data
@@ -28,4 +29,6 @@ public class DeptElectiveSelection {
     @ManyToOne
     @JoinColumn(name = "session_id")
     private Session session;
+
+    private LocalDateTime selectedAt;
 }

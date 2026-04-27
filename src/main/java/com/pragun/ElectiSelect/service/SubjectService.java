@@ -1,7 +1,9 @@
 package com.pragun.ElectiSelect.service;
 
 import com.pragun.ElectiSelect.model.Session;
+import com.pragun.ElectiSelect.model.SessionType;
 import com.pragun.ElectiSelect.model.Subject;
+import com.pragun.ElectiSelect.model.SubjectDTO;
 import com.pragun.ElectiSelect.repository.SessionRepository;
 import com.pragun.ElectiSelect.repository.SubjectRepository;
 import org.apache.poi.ss.usermodel.*;
@@ -11,7 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class SubjectService {
@@ -45,7 +49,10 @@ public class SubjectService {
                 subject.setFilled_seats(0);
 
                 if (row.getCell(4) != null) {
-                    subject.setRestrictedDepts(row.getCell(4).getStringCellValue());
+                    subject.setAllowedDepts(row.getCell(4).getStringCellValue());
+                }
+                if (row.getCell(5) != null) {
+                    subject.setRestrictedDepts(row.getCell(5).getStringCellValue());
                 }
                 subjects.add(subject);
             }
@@ -53,8 +60,55 @@ public class SubjectService {
         }
     }
 
-
+    // Legacy — kept to avoid breaking other callers.
     public List<Subject> getAvailableSubjectsForSemester(int semester) {
-        return subjectRepository.findBySession_IsActiveTrueAndSession_Semester(semester);
+        return subjectRepository.findBySession_IsActiveTrueAndSession_SemesterAndIsDeletedFalse(semester);
+    }
+
+    /**
+     * Fetch open elective subjects visible to a specific student.
+     *
+     * Enforces (workflow.md §9):
+     * 1. Session type == OPEN, is_active == true, semester == student.currentSemester
+     * 2. Department access rule: allowedDepts (allowlist) takes precedence over restrictedDepts (blocklist)
+     * 3. Returns SubjectDTO with remainingSeats computed at list time
+     *
+     * Note: seat counts are point-in-time snapshots; the backend transaction is authoritative.
+     */
+    public List<SubjectDTO> getAvailableOpenSubjectsForStudent(int semester, String studentDepartment) {
+        // Step 1: fetch subjects in an active OPEN session for this semester
+        List<Subject> subjects = subjectRepository
+                .findBySession_IsActiveTrueAndSession_SemesterAndSession_TypeAndIsDeletedFalse(semester, SessionType.OPEN);
+
+        // Step 2: apply department access rule and map to DTO
+        return subjects.stream()
+                .filter(subject -> isDepartmentPermitted(subject, studentDepartment))
+                .map(SubjectDTO::new)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns true if the student's department is permitted to select the given subject.
+     * allowed_departments (allowlist) takes precedence over restricted_departments (blocklist).
+     * A subject with neither field set is visible to all departments.
+     */
+    private boolean isDepartmentPermitted(Subject subject, String studentDepartment) {
+        String allowed = subject.getAllowedDepts();
+        String restricted = subject.getRestrictedDepts();
+
+        if (allowed != null && !allowed.isBlank()) {
+            // Allowlist mode: only departments in the list may see this subject
+            return Arrays.stream(allowed.split(","))
+                    .map(String::trim)
+                    .anyMatch(dept -> dept.equals(studentDepartment));
+        }
+        if (restricted != null && !restricted.isBlank()) {
+            // Blocklist mode: departments in the list are excluded
+            return Arrays.stream(restricted.split(","))
+                    .map(String::trim)
+                    .noneMatch(dept -> dept.equals(studentDepartment));
+        }
+        // No restriction set — visible to all
+        return true;
     }
 }
