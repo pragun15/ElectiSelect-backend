@@ -50,7 +50,7 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
             newUser.setRole(Role.STUDENT); // Default
 
             // Handle Super Admin
-            if (email.equals("1ds24is110.dsce.edu.in")) {
+            if (email.equals("santhosh-ise@dayanandasagar.edu")) {
                 newUser.setRole(Role.SUPER_ADMIN);
             }
 

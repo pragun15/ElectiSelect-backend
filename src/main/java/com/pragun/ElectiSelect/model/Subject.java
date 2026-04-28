@@ -34,5 +34,5 @@ public class Subject {
     // Only evaluated when allowedDepts is null/empty.
     private String restrictedDepts;
 
-    private boolean isDeleted = false;
+    private boolean deleted = false;
 }

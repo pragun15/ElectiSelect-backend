@@ -19,4 +19,4 @@ out/
 ._*
 
 # --- Local Secrets ---
-.env
+../.env
