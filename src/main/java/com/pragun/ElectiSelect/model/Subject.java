@@ -33,6 +33,6 @@ public class Subject {
     // Comma-separated blocklist: departments blocked from selecting.
     // Only evaluated when allowedDepts is null/empty.
     private String restrictedDepts;
-
-    private boolean deleted = false;
+    @Column(name = "is_deleted")
+    private boolean isDeleted;
 }
