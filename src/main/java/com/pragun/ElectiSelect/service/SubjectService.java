@@ -48,11 +48,9 @@ public class SubjectService {
                 subject.setMaxSeats((int) row.getCell(3).getNumericCellValue());
                 subject.setFilled_seats(0);
 
-                if (row.getCell(4) != null) {
-                    subject.setAllowedDepts(row.getCell(4).getStringCellValue());
-                }
-                if (row.getCell(5) != null) {
-                    subject.setRestrictedDepts(row.getCell(5).getStringCellValue());
+                // Column 4: restricted_depts (optional blocklist)
+                if (row.getCell(4) != null && !row.getCell(4).getStringCellValue().isBlank()) {
+                    subject.setRestrictedDepts(row.getCell(4).getStringCellValue());
                 }
                 subjects.add(subject);
             }
@@ -70,7 +68,7 @@ public class SubjectService {
      *
      * Enforces (workflow.md §9):
      * 1. Session type == OPEN, is_active == true, semester == student.currentSemester
-     * 2. Department access rule: allowedDepts (allowlist) takes precedence over restrictedDepts (blocklist)
+     * 2. Department access rule: restricted_depts (blocklist) — a subject with no restricted_depts is open to all
      * 3. Returns SubjectDTO with remainingSeats computed at list time
      *
      * Note: seat counts are point-in-time snapshots; the backend transaction is authoritative.
@@ -80,35 +78,39 @@ public class SubjectService {
         List<Subject> subjects = subjectRepository
                 .findBySession_IsActiveTrueAndSession_SemesterAndSession_TypeAndIsDeletedFalse(semester, SessionType.OPEN);
 
+        System.out.println("🔍 [SubjectService] Raw subjects from DB for semester=" + semester + ": " + subjects.size());
+        for (Subject s : subjects) {
+            System.out.println("  Subject: id=" + s.getId() + ", title=" + s.getTitle() + ", dept=" + s.getDepartment() + ", restrictedDepts=" + s.getRestrictedDepts() + ", isDeleted=" + s.getIsDeleted());
+            if (s.getSession() != null) {
+                System.out.println("    -> Session: id=" + s.getSession().getId() + ", type=" + s.getSession().getType() + ", semester=" + s.getSession().getSemester() + ", isActive=" + s.getSession().getIsActive());
+            }
+        }
+
         // Step 2: apply department access rule and map to DTO
-        return subjects.stream()
+        List<SubjectDTO> result = subjects.stream()
                 .filter(subject -> isDepartmentPermitted(subject, studentDepartment))
                 .map(SubjectDTO::new)
                 .collect(Collectors.toList());
+
+        System.out.println("🔍 [SubjectService] After dept filter for '" + studentDepartment + "': " + result.size() + " subjects.");
+        return result;
     }
 
     /**
      * Returns true if the student's department is permitted to select the given subject.
-     * allowed_departments (allowlist) takes precedence over restricted_departments (blocklist).
-     * A subject with neither field set is visible to all departments.
+     * A subject with no restricted_depts is visible to ALL departments.
+     * A subject with restricted_depts excludes the listed departments (comma-separated blocklist).
      */
     private boolean isDepartmentPermitted(Subject subject, String studentDepartment) {
-        String allowed = subject.getAllowedDepts();
-        String restricted = subject.getRestrictedDepts();
+        if (studentDepartment == null) return false;
 
-        if (allowed != null && !allowed.isBlank()) {
-            // Allowlist mode: only departments in the list may see this subject
-            return Arrays.stream(allowed.split(","))
-                    .map(String::trim)
-                    .anyMatch(dept -> dept.equals(studentDepartment));
+        String restricted = subject.getRestrictedDepts();
+        if (restricted == null || restricted.isBlank()) {
+            return true; // No restriction — visible to everyone
         }
-        if (restricted != null && !restricted.isBlank()) {
-            // Blocklist mode: departments in the list are excluded
-            return Arrays.stream(restricted.split(","))
-                    .map(String::trim)
-                    .noneMatch(dept -> dept.equals(studentDepartment));
-        }
-        // No restriction set — visible to all
-        return true;
+
+        return Arrays.stream(restricted.split(","))
+                .map(String::trim)
+                .noneMatch(dept -> dept.equalsIgnoreCase(studentDepartment));
     }
 }

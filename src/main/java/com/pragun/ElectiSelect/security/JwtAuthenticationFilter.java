@@ -28,11 +28,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String authHeader = request.getHeader("Authorization");
+        System.out.println("🔍 Incoming Request to: " + request.getRequestURI());
+        System.out.println("🔍 Authorization Header: " + (authHeader != null ? authHeader.substring(0, Math.min(20, authHeader.length())) + "..." : "NULL"));
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
 
             if (jwtUtils.validateToken(token)) {
+                System.out.println("✅ Token is valid.");
                 String email = jwtUtils.getEmailFromToken(token);
                 String role = jwtUtils.getRoleFromToken(token); // 👈 Dynamically get the role
 
@@ -44,6 +47,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
+                System.out.println("✅ Authentication set for user: " + email + " with role: " + authority);
+            } else {
+                System.out.println("❌ Token validation failed!");
+                // Force a 401 response if the token is invalid or expired
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired JWT token");
+                return;
             }
         }
         filterChain.doFilter(request, response);

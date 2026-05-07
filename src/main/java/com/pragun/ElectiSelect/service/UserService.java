@@ -34,7 +34,12 @@ public class UserService {
     public int getStudentSemester(String email) {
         User user = getUserByEmail(email);
         AcademicState state = academicStateRepository.findByUser(user)
-                .orElseThrow(() -> new RuntimeException("Academic state not found for user: " + email));
+                .orElseGet(() -> {
+                    AcademicState newState = new AcademicState();
+                    newState.setUser(user);
+                    newState.setCurrentSemester(0);
+                    return academicStateRepository.save(newState);
+                });
         return state.getCurrentSemester();
     }
 
@@ -46,7 +51,12 @@ public class UserService {
     public ProfileResponse getStudentProfile(String email) {
         User user = getUserByEmail(email);
         AcademicState state = academicStateRepository.findByUser(user)
-                .orElseThrow(() -> new RuntimeException("Academic state not found for user: " + email));
+                .orElseGet(() -> {
+                    AcademicState newState = new AcademicState();
+                    newState.setUser(user);
+                    newState.setCurrentSemester(0);
+                    return academicStateRepository.save(newState);
+                });
 
         // Find any active session (OPEN or DEPARTMENT) matching the student's current semester
         List<Session> activeSessions = sessionRepository.findByIsActiveTrueAndSemester(state.getCurrentSemester());

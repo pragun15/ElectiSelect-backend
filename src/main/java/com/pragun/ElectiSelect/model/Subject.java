@@ -26,13 +26,15 @@ public class Subject {
     private int maxSeats;
     private int filled_seats = 0;
 
-    // Comma-separated allowlist: if set (non-null, non-empty), ONLY these departments may select.
-    // Takes precedence over restrictedDepts — workflow.md §9, §10 step 4.
-    private String allowedDepts;
-
     // Comma-separated blocklist: departments blocked from selecting.
-    // Only evaluated when allowedDepts is null/empty.
+    // Only evaluated when restrictedDepts is non-null and non-empty — workflow.md §9 step 4.
     private String restrictedDepts;
+
     @Column(name = "is_deleted")
-    private boolean isDeleted;
+    private Boolean isDeleted = false;
+
+    // Legacy column from older schema — kept to satisfy DB NOT NULL constraint.
+    // is_deleted is the authoritative field; this mirrors it.
+    @Column(name = "deleted", nullable = false)
+    private Boolean deleted = false;
 }

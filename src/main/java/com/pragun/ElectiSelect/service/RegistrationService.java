@@ -38,7 +38,9 @@ public class RegistrationService {
                 .orElseThrow(() -> new RuntimeException("Subject not found"));
 
         // ── Step 3: Check subject availability ──────────────────────────────────
-        if (subject.isDeleted()) {
+        boolean isSubjectDeleted = (subject.getIsDeleted() != null && subject.getIsDeleted())
+                || (subject.getDeleted() != null && subject.getDeleted());
+        if (isSubjectDeleted) {
             throw new RuntimeException("SUBJECT_UNAVAILABLE");
         }
 
@@ -48,25 +50,15 @@ public class RegistrationService {
         }
 
         // ── Step 4: Apply department access rule inside transaction ─────────────
-        // Re-applied here even though it was filtered at list-fetch time.
         // A student can bypass the frontend and POST directly with any subject_id.
-        // allowed_departments (allowlist) takes precedence over restricted_departments.
-        String allowedDepts = subject.getAllowedDepts();
+        // Only restricted_departments (blocklist) is enforced — if a student's dept
+        // is in the blocklist they are denied; otherwise they are allowed.
         String restrictedDepts = subject.getRestrictedDepts();
         String studentDept = user.getDepartment();
-        if (allowedDepts != null && !allowedDepts.isBlank()) {
-            // Allowlist mode: ONLY these departments may select this subject.
-            boolean isAllowed = Arrays.stream(allowedDepts.split(","))
-                    .map(String::trim)
-                    .anyMatch(dept -> dept.equals(studentDept));
-            if (!isAllowed) {
-                throw new RuntimeException("DEPARTMENT_RESTRICTED");
-            }
-        } else if (restrictedDepts != null && !restrictedDepts.isBlank()) {
-            // Blocklist mode: these departments are explicitly excluded.
+        if (restrictedDepts != null && !restrictedDepts.isBlank()) {
             boolean isRestricted = Arrays.stream(restrictedDepts.split(","))
                     .map(String::trim)
-                    .anyMatch(dept -> dept.equals(studentDept));
+                    .anyMatch(dept -> dept.equalsIgnoreCase(studentDept));
             if (isRestricted) {
                 throw new RuntimeException("DEPARTMENT_RESTRICTED");
             }
@@ -77,7 +69,7 @@ public class RegistrationService {
         // student fetched the subject list (GET) and submitted this selection (POST).
         // This check must happen while the subject row lock is held.
         Session session = subject.getSession();
-        if (!session.isActive()
+        if (session.getIsActive() == null || !session.getIsActive()
                 || LocalDateTime.now().isBefore(session.getStartTime())
                 || LocalDateTime.now().isAfter(session.getEndTime())) {
             throw new RuntimeException("SESSION_INVALID");
@@ -119,7 +111,12 @@ public class RegistrationService {
         selection.setStudent(user);
         selection.setSubject(subject);
         selection.setSession(session);
-        openElectiveSelectionRepository.save(selection);
+        
+        try {
+            openElectiveSelectionRepository.save(selection);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            throw new RuntimeException("ALREADY_SELECTED");
+        }
     }
 
     public List<Registration> getAllRegistrations() {

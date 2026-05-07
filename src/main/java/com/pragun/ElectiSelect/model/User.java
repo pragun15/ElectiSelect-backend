@@ -17,6 +17,10 @@ public class User {
     @Column(unique = true)
     private String usn;
     private String department;
+    private String phone;
+
+    @Column(name = "profile_completed", nullable = false, columnDefinition = "boolean default false")
+    private boolean profileCompleted = false;
 
     @Enumerated(EnumType.STRING)
     private Role role;

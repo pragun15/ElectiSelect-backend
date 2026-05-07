@@ -36,8 +36,8 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         String email = oAuth2User.getAttribute("email");
 
         // 🛡️ SECURITY LAYER 2: Domain Validation
-        if (email == null || !(email.endsWith("@dsce.edu.in") || email.endsWith("@dayanandasagar.edu"))) {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Only college emails are allowed.");
+        if (email == null || !email.endsWith("@dsce.edu.in")) {
+            getRedirectStrategy().sendRedirect(request, response, "http://localhost:5173/login?error=unauthorized_email");
             return;
         }
 
@@ -46,7 +46,18 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
             // Create new user if they don't exist
             User newUser = new User();
             newUser.setEmail(email);
-            newUser.setName(oAuth2User.getAttribute("name"));
+            String rawName = oAuth2User.getAttribute("name");
+            String cleanedName = rawName;
+            
+            if (rawName != null) {
+                String[] parts = rawName.trim().split("\\s+");
+                // If first part contains digits -> assume USN
+                if (parts.length > 1 && parts[0].matches(".*\\d.*")) {
+                    cleanedName = String.join(" ", java.util.Arrays.copyOfRange(parts, 1, parts.length));
+                }
+            }
+            
+            newUser.setName(cleanedName);
             newUser.setRole(Role.STUDENT); // Default
 
             // Handle Super Admin
@@ -69,7 +80,7 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
 
         // Redirect to our Frontend (React) with the token in the URL
         // Once we build the frontend, it will grab this token from the URL and save it
-        String targetUrl = "http://localhost:3000/login-success?token=" + token;
+        String targetUrl = "http://localhost:5173/login-success?token=" + token;
 
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
     }

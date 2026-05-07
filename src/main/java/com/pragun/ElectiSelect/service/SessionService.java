@@ -21,7 +21,7 @@ public class SessionService {
         // ⛔ NON-NEGOTIABLE: Only ONE active session per type globally (workflow.md §5, BR-7).
         // Scope is type-only — NOT type+semester. Two active OPEN sessions for different
         // semesters are prohibited.
-        if (session.isActive()) {
+        if (session.getIsActive() != null && session.getIsActive()) {
             List<Session> activeSessions = sessionRepository.findByIsActiveTrueAndType(session.getType());
             if (!activeSessions.isEmpty()) {
                 throw new RuntimeException("SESSION_ALREADY_ACTIVE");
@@ -52,7 +52,7 @@ public class SessionService {
             }
         }
 
-        session.setActive(status);
+        session.setIsActive(status);
         sessionRepository.save(session);
     }
 }

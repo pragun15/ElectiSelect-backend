@@ -52,10 +52,21 @@ public class GlobalExceptionHandler {
                     .body(new ErrorResponse(raw, friendly));
         }
 
-        // Unrecognised exception — 500, opaque message (do not leak stack trace)
+        // Spring Security AccessDeniedException
+        if (ex instanceof org.springframework.security.access.AccessDeniedException) {
+            return ResponseEntity
+                    .status(403)
+                    .body(new ErrorResponse("ACCESS_DENIED", "You do not have permission to access this resource."));
+        }
+
+        // Log the unrecognised exception so we can debug it
+        System.err.println("🔥 UNHANDLED EXCEPTION: ");
+        ex.printStackTrace();
+
+        // Unrecognised exception — 500, but temporarily leak message for debugging
         return ResponseEntity
                 .status(500)
-                .body(new ErrorResponse("INTERNAL_ERROR", "An unexpected error occurred."));
+                .body(new ErrorResponse("INTERNAL_ERROR", "Unexpected error: " + raw));
     }
 
     private int resolveHttpStatus(String code) {

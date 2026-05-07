@@ -66,7 +66,7 @@ public class ProfileResponse {
         SessionInfo(Session s) {
             this.type      = s.getType() != null ? s.getType().name() : null;
             this.semester  = s.getSemester();
-            this.active    = s.isActive();
+            this.active    = s.getIsActive() != null && s.getIsActive();
             this.startTime = s.getStartTime();
             this.endTime   = s.getEndTime();
         }

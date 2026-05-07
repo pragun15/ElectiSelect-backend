@@ -15,7 +15,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/student")
-@PreAuthorize("hasRole('STUDENT')")
 public class StudentController {
 
     private final RegistrationService registrationService;
@@ -36,15 +35,27 @@ public class StudentController {
     }
 
     @GetMapping("/available-subjects")
-    public ResponseEntity<List<SubjectDTO>> getSubjects(@AuthenticationPrincipal String email) {
-        User student = userService.getUserByEmail(email);
-        int semester = userService.getStudentSemester(email);
-        List<SubjectDTO> available = subjectService.getAvailableOpenSubjectsForStudent(
-                semester, student.getDepartment());
-        return ResponseEntity.ok(available);
+    @PreAuthorize("hasAnyRole('STUDENT', 'SUPER_ADMIN')")
+    public ResponseEntity<?> getSubjects(@AuthenticationPrincipal String email) {
+        try {
+            User student = userService.getUserByEmail(email);
+            int semester = userService.getStudentSemester(email);
+
+            List<SubjectDTO> available = subjectService
+                    .getAvailableOpenSubjectsForStudent(semester, student.getDepartment());
+
+            System.out.println("🔍 fetchSubjects called for semester: " + semester + ", department: " + student.getDepartment());
+            System.out.println("🔍 Found " + available.size() + " available subjects.");
+
+            return ResponseEntity.ok(available);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Error: " + e.getMessage() + " | Cause: " + (e.getCause() != null ? e.getCause().getMessage() : "none"));
+        }
     }
 
     @PostMapping("/register/{subjectId}")
+    @PreAuthorize("hasAnyRole('STUDENT', 'SUPER_ADMIN')")
     public ResponseEntity<String> register(@AuthenticationPrincipal String email,
                                            @PathVariable Long subjectId) {
         registrationService.registerStudentForElective(email, subjectId);

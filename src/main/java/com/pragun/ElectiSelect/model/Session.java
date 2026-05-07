@@ -17,7 +17,7 @@ public class Session {
     private SessionType type;
     private int semester;
     private String academicYear;
-    private boolean isActive = false;
+    private Boolean isActive = false;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
 }
