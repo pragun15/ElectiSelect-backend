@@ -3,6 +3,7 @@ package com.pragun.ElectiSelect.controller;
 import com.pragun.ElectiSelect.model.ProfileResponse;
 import com.pragun.ElectiSelect.model.SubjectDTO;
 import com.pragun.ElectiSelect.model.User;
+import com.pragun.ElectiSelect.repository.OpenElectiveSelectionRepository;
 import com.pragun.ElectiSelect.service.RegistrationService;
 import com.pragun.ElectiSelect.service.SubjectService;
 import com.pragun.ElectiSelect.service.UserService;
@@ -20,13 +21,16 @@ public class StudentController {
     private final RegistrationService registrationService;
     private final SubjectService subjectService;
     private final UserService userService;
+    private final OpenElectiveSelectionRepository openElectiveSelectionRepository;
 
     public StudentController(RegistrationService registrationService,
                              SubjectService subjectService,
-                             UserService userService) {
+                             UserService userService,
+                             OpenElectiveSelectionRepository openElectiveSelectionRepository) {
         this.registrationService = registrationService;
         this.subjectService = subjectService;
         this.userService = userService;
+        this.openElectiveSelectionRepository = openElectiveSelectionRepository;
     }
 
     @GetMapping("/profile")
@@ -60,5 +64,29 @@ public class StudentController {
                                            @PathVariable Long subjectId) {
         registrationService.registerStudentForElective(email, subjectId);
         return ResponseEntity.ok("Registration successful!");
+    }
+
+    /**
+     * GET /api/student/my-selection
+     *
+     * Returns the subject ID of the student's current open-elective selection,
+     * or null if they have not selected yet.
+     *
+     * The frontend uses this on page load to pre-highlight the already-selected subject.
+     * This endpoint is read-only — it does NOT modify any state.
+     */
+    @GetMapping("/my-selection")
+    @PreAuthorize("hasAnyRole('STUDENT', 'SUPER_ADMIN')")
+    public ResponseEntity<?> getMySelection(@AuthenticationPrincipal String email) {
+        try {
+            User student = userService.getUserByEmail(email);
+            return openElectiveSelectionRepository
+                    .findFirstByStudentOrderByIdDesc(student)
+                    .map(sel -> ResponseEntity.ok((Object) sel.getSubject().getId()))
+                    .orElse(ResponseEntity.ok(null));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Error fetching selection: " + e.getMessage());
+        }
     }
 }

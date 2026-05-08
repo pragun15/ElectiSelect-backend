@@ -26,6 +26,9 @@ public class Subject {
     private int maxSeats;
     private int filled_seats = 0;
 
+    @Column(name = "credits", nullable = false)
+    private Integer credits;
+
     // Comma-separated blocklist: departments blocked from selecting.
     // Only evaluated when restrictedDepts is non-null and non-empty — workflow.md §9 step 4.
     private String restrictedDepts;

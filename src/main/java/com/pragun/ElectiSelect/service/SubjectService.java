@@ -1,9 +1,12 @@
 package com.pragun.ElectiSelect.service;
 
+import com.pragun.ElectiSelect.model.DeptCategory;
+import com.pragun.ElectiSelect.model.DeptCategoryDTO;
 import com.pragun.ElectiSelect.model.Session;
 import com.pragun.ElectiSelect.model.SessionType;
 import com.pragun.ElectiSelect.model.Subject;
 import com.pragun.ElectiSelect.model.SubjectDTO;
+import com.pragun.ElectiSelect.repository.DeptCategoryRepository;
 import com.pragun.ElectiSelect.repository.SessionRepository;
 import com.pragun.ElectiSelect.repository.SubjectRepository;
 import org.apache.poi.ss.usermodel.*;
@@ -22,10 +25,14 @@ public class SubjectService {
 
     private final SubjectRepository subjectRepository;
     private final SessionRepository sessionRepository;
+    private final DeptCategoryRepository deptCategoryRepository;
 
-    public SubjectService(SubjectRepository subjectRepository, SessionRepository sessionRepository) {
+    public SubjectService(SubjectRepository subjectRepository,
+                          SessionRepository sessionRepository,
+                          DeptCategoryRepository deptCategoryRepository) {
         this.subjectRepository = subjectRepository;
         this.sessionRepository = sessionRepository;
+        this.deptCategoryRepository = deptCategoryRepository;
     }
 
     @Transactional
@@ -52,6 +59,17 @@ public class SubjectService {
                 if (row.getCell(4) != null && !row.getCell(4).getStringCellValue().isBlank()) {
                     subject.setRestrictedDepts(row.getCell(4).getStringCellValue());
                 }
+
+                // Column 5: credits (MANDATORY — no default, no fallback)
+                if (row.getCell(5) == null) {
+                    throw new RuntimeException("Credits must be provided for row " + (i + 1) + " (course: " + row.getCell(0).getStringCellValue() + ")");
+                }
+                int credits = (int) row.getCell(5).getNumericCellValue();
+                if (credits <= 0) {
+                    throw new RuntimeException("Credits must be provided for row " + (i + 1) + " (course: " + row.getCell(0).getStringCellValue() + ")");
+                }
+                subject.setCredits(credits);
+
                 subjects.add(subject);
             }
             subjectRepository.saveAll(subjects);
@@ -112,5 +130,64 @@ public class SubjectService {
         return Arrays.stream(restricted.split(","))
                 .map(String::trim)
                 .noneMatch(dept -> dept.equalsIgnoreCase(studentDepartment));
+    }
+
+    /**
+     * Fetch department electives grouped by category, for the given student's semester.
+     *
+     * Enforces:
+     * 1. Session type == DEPARTMENT, is_active == true, semester == student.currentSemester
+     * 2. Categories are fetched by active DEPARTMENT session id
+     * 3. Subjects per category are fetched using category.id + session.id, excluding deleted
+     * 4. Returns List<DeptCategoryDTO> with subjects nested under each category
+     *
+     * Open-elective logic is NOT touched.
+     */
+    public List<DeptCategoryDTO> getDeptElectivesForStudent(int semester) {
+        // Step 1: resolve active DEPARTMENT session for this semester
+        List<Session> deptSessions = sessionRepository
+                .findByIsActiveTrueAndSemesterAndType(semester, SessionType.DEPARTMENT);
+
+        System.out.println("🏫 [DeptElective] Looking for active DEPARTMENT session for semester=" + semester);
+        System.out.println("🏫 [DeptElective] Found " + deptSessions.size() + " DEPARTMENT session(s).");
+
+        if (deptSessions.isEmpty()) {
+            System.out.println("🏫 [DeptElective] No active DEPARTMENT session — returning empty list.");
+            return new ArrayList<>();
+        }
+
+        Session deptSession = deptSessions.get(0);
+        System.out.println("🏫 [DeptElective] Using DEPARTMENT session id=" + deptSession.getId()
+                + ", semester=" + deptSession.getSemester()
+                + ", isActive=" + deptSession.getIsActive());
+
+        // Step 2: fetch all categories linked to this session
+        List<DeptCategory> categories = deptCategoryRepository.findBySession_Id(deptSession.getId());
+        System.out.println("🏫 [DeptElective] Categories found: " + categories.size());
+
+        if (categories.isEmpty()) {
+            System.out.println("🏫 [DeptElective] ⚠️ No categories linked to session id=" + deptSession.getId()
+                    + ". Check that dept_category.session_id matches the active DEPARTMENT session.");
+            return new ArrayList<>();
+        }
+
+        // Step 3: for each category, fetch subjects and map to DTO
+        List<DeptCategoryDTO> result = new ArrayList<>();
+        for (DeptCategory category : categories) {
+            List<Subject> rawSubjects = subjectRepository
+                    .findByCategoryIdAndSessionIdAndNotDeleted(category.getId(), deptSession.getId());
+
+            System.out.println("🏫 [DeptElective] Category '" + category.getCategoryName()
+                    + "' (id=" + category.getId() + ") → " + rawSubjects.size() + " subject(s).");
+
+            List<SubjectDTO> subjectDTOs = rawSubjects.stream()
+                    .map(SubjectDTO::new)
+                    .collect(Collectors.toList());
+
+            result.add(new DeptCategoryDTO(category, subjectDTOs));
+        }
+
+        System.out.println("🏫 [DeptElective] Returning " + result.size() + " categories.");
+        return result;
     }
 }

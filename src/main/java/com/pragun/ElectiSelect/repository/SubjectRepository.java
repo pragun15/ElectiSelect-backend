@@ -32,4 +32,13 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
     List<Subject> findBySession_IsActiveTrueAndSession_SemesterAndSession_TypeAndIsDeletedFalse(
             @Param("semester") int semester,
             @Param("type") SessionType type);
+
+    /**
+     * Fetch all non-deleted subjects for a specific category, scoped to a given session.
+     * Used by the dept-elective flow to load subjects per category.
+     */
+    @Query("SELECT s FROM Subject s WHERE s.category.id = :categoryId AND s.session.id = :sessionId AND (s.isDeleted = false OR s.isDeleted IS NULL)")
+    List<Subject> findByCategoryIdAndSessionIdAndNotDeleted(
+            @Param("categoryId") Long categoryId,
+            @Param("sessionId") Long sessionId);
 }

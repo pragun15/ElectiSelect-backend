@@ -10,17 +10,25 @@ public class ProfileResponse {
 
     private final UserInfo user;
     private final AcademicStateInfo academicState;
-    private final SessionInfo activeSession; // null when no active session for student's semester
+    private final SessionInfo activeSession; // null when no active session for student's semester (kept for backward compat)
+    private final SessionInfo openSession;   // active OPEN session for this semester, or null
+    private final SessionInfo deptSession;   // active DEPARTMENT session for this semester, or null
 
-    public ProfileResponse(User user, AcademicState state, Session session) {
+    public ProfileResponse(User user, AcademicState state, Session openSession, Session deptSession) {
         this.user = new UserInfo(user);
         this.academicState = new AcademicStateInfo(state);
-        this.activeSession = session != null ? new SessionInfo(session) : null;
+        // activeSession: prefer OPEN for backward compat with OpenElective.jsx profile check
+        Session legacy = openSession != null ? openSession : deptSession;
+        this.activeSession = legacy != null ? new SessionInfo(legacy) : null;
+        this.openSession   = openSession != null ? new SessionInfo(openSession) : null;
+        this.deptSession   = deptSession != null ? new SessionInfo(deptSession) : null;
     }
 
     public UserInfo         getUser()          { return user; }
     public AcademicStateInfo getAcademicState() { return academicState; }
     public SessionInfo      getActiveSession() { return activeSession; }
+    public SessionInfo      getOpenSession()   { return openSession; }
+    public SessionInfo      getDeptSession()   { return deptSession; }
 
     // ── Nested DTOs ────────────────────────────────────────────────────────────
 

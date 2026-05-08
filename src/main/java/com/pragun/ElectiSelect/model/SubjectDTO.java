@@ -15,6 +15,7 @@ public class SubjectDTO {
     private int maxSeats;
     private int filledSeats;
     private int remainingSeats; // maxSeats - filledSeats, computed at list time
+    private Integer credits;   // mandatory — never null; enforced at subject creation
 
     public SubjectDTO(Subject subject) {
         this.id = subject.getId();
@@ -24,6 +25,7 @@ public class SubjectDTO {
         this.maxSeats = subject.getMaxSeats();
         this.filledSeats = subject.getFilled_seats();
         this.remainingSeats = subject.getMaxSeats() - subject.getFilled_seats();
+        this.credits = subject.getCredits();
     }
 
     public Long getId() { return id; }
@@ -33,4 +35,5 @@ public class SubjectDTO {
     public int getMaxSeats() { return maxSeats; }
     public int getFilledSeats() { return filledSeats; }
     public int getRemainingSeats() { return remainingSeats; }
+    public Integer getCredits() { return credits; }
 }

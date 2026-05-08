@@ -3,6 +3,7 @@ package com.pragun.ElectiSelect.service;
 import com.pragun.ElectiSelect.model.AcademicState;
 import com.pragun.ElectiSelect.model.ProfileResponse;
 import com.pragun.ElectiSelect.model.Session;
+import com.pragun.ElectiSelect.model.SessionType;
 import com.pragun.ElectiSelect.model.User;
 import com.pragun.ElectiSelect.repository.AcademicStateRepository;
 import com.pragun.ElectiSelect.repository.SessionRepository;
@@ -45,8 +46,8 @@ public class UserService {
 
     /**
      * Builds the full profile response for GET /api/student/profile.
-     * Loads User, AcademicState, and the active session (if any) for the student's semester.
-     * Returns null for activeSession if no session is currently active — frontend renders locked state.
+     * Loads User, AcademicState, and the active sessions for the student's semester.
+     * Returns null for openSession / deptSession if none is active — frontend renders locked state.
      */
     public ProfileResponse getStudentProfile(String email) {
         User user = getUserByEmail(email);
@@ -58,10 +59,15 @@ public class UserService {
                     return academicStateRepository.save(newState);
                 });
 
-        // Find any active session (OPEN or DEPARTMENT) matching the student's current semester
-        List<Session> activeSessions = sessionRepository.findByIsActiveTrueAndSemester(state.getCurrentSemester());
-        Session activeSession = activeSessions.isEmpty() ? null : activeSessions.get(0);
+        int semester = state.getCurrentSemester();
 
-        return new ProfileResponse(user, state, activeSession);
+        // Fetch OPEN and DEPARTMENT sessions independently so Dashboard can show correct status per type
+        List<Session> openSessions = sessionRepository.findByIsActiveTrueAndSemesterAndType(semester, SessionType.OPEN);
+        List<Session> deptSessions = sessionRepository.findByIsActiveTrueAndSemesterAndType(semester, SessionType.DEPARTMENT);
+
+        Session openSession = openSessions.isEmpty() ? null : openSessions.get(0);
+        Session deptSession = deptSessions.isEmpty() ? null : deptSessions.get(0);
+
+        return new ProfileResponse(user, state, openSession, deptSession);
     }
 }
