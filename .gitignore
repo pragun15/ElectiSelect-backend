@@ -1,22 +1,19 @@
-# --- Java & Maven ---
+# Environment files
+.env
+.env.*
+*.env
+
+# Logs
+*.log
+error_log.txt
+
+# Secrets / temp scripts
+generate_jwt.js
+
+# Build
 target/
-*.class
-*.jar
-*.war
-*.ear
-*.zip
+dist/
+node_modules/
 
-
-# --- IDEs ---
-.idea/
-*.iml
-*.iws
-out/
-
-# --- Operating System (Mac) ---
+# OS
 .DS_Store
-.DS_Store?
-._*
-
-# --- Local Secrets ---
-../.env
