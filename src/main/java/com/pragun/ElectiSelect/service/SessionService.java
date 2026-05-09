@@ -18,6 +18,14 @@ public class SessionService {
 
     @Transactional
     public Session createSession(Session session) {
+        boolean duplicateExists = sessionRepository.existsByTypeAndSemesterAndAcademicYear(
+                session.getType(),
+                session.getSemester(),
+                session.getAcademicYear());
+        if (duplicateExists) {
+            throw new RuntimeException("SESSION_ALREADY_EXISTS");
+        }
+
         // ⛔ NON-NEGOTIABLE: Only ONE active session per type globally (workflow.md §5, BR-7).
         // Scope is type-only — NOT type+semester. Two active OPEN sessions for different
         // semesters are prohibited.

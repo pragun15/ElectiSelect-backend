@@ -40,7 +40,18 @@ public class SubjectService {
         Session session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("Session not found"));
 
+        if (session.getIsActive() != null && session.getIsActive()) {
+            throw new RuntimeException("Cannot upload subjects into an active session.");
+        }
+
+        boolean hasSubjects = subjectRepository.existsNonDeletedBySessionId(sessionId);
+        if (hasSubjects) {
+            throw new RuntimeException("This session already contains uploaded subjects. Re-upload is currently disabled.");
+        }
+
+        java.util.Map<String, DeptCategory> categoryCache = new java.util.HashMap<>();
         List<Subject> subjects = new ArrayList<>();
+        
         try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
@@ -49,7 +60,15 @@ public class SubjectService {
 
                 Subject subject = new Subject();
                 subject.setSession(session);
-                subject.setCourseCode(row.getCell(0).getStringCellValue());
+                
+                if (row.getCell(0).getCellType() == CellType.STRING) {
+                    subject.setCourseCode(row.getCell(0).getStringCellValue());
+                } else if (row.getCell(0).getCellType() == CellType.NUMERIC) {
+                    subject.setCourseCode(String.valueOf((int) row.getCell(0).getNumericCellValue()));
+                } else {
+                     throw new RuntimeException("Course Code must be provided for row " + (i + 1));
+                }
+
                 subject.setTitle(row.getCell(1).getStringCellValue());
                 subject.setDepartment(row.getCell(2).getStringCellValue());
                 subject.setMaxSeats((int) row.getCell(3).getNumericCellValue());
@@ -62,13 +81,38 @@ public class SubjectService {
 
                 // Column 5: credits (MANDATORY — no default, no fallback)
                 if (row.getCell(5) == null) {
-                    throw new RuntimeException("Credits must be provided for row " + (i + 1) + " (course: " + row.getCell(0).getStringCellValue() + ")");
+                    throw new RuntimeException("Credits must be provided for row " + (i + 1) + " (course: " + subject.getCourseCode() + ")");
                 }
                 int credits = (int) row.getCell(5).getNumericCellValue();
                 if (credits <= 0) {
-                    throw new RuntimeException("Credits must be provided for row " + (i + 1) + " (course: " + row.getCell(0).getStringCellValue() + ")");
+                    throw new RuntimeException("Credits must be provided for row " + (i + 1) + " (course: " + subject.getCourseCode() + ")");
                 }
                 subject.setCredits(credits);
+
+                // Column 6: Category Name
+                String categoryName = null;
+                if (row.getCell(6) != null && row.getCell(6).getCellType() == CellType.STRING && !row.getCell(6).getStringCellValue().isBlank()) {
+                    categoryName = row.getCell(6).getStringCellValue().trim();
+                }
+
+                if (session.getType() == SessionType.DEPARTMENT && categoryName == null) {
+                    throw new RuntimeException("Category Name must be provided for row " + (i + 1) + " (course: " + subject.getCourseCode() + ") because this is a DEPARTMENT session.");
+                }
+
+                if (categoryName != null) {
+                    DeptCategory category = categoryCache.get(categoryName);
+                    if (category == null) {
+                        category = deptCategoryRepository.findByCategoryNameAndSession_Id(categoryName, sessionId);
+                        if (category == null) {
+                            category = new DeptCategory();
+                            category.setCategoryName(categoryName);
+                            category.setSession(session);
+                            category = deptCategoryRepository.save(category);
+                        }
+                        categoryCache.put(categoryName, category);
+                    }
+                    subject.setCategory(category);
+                }
 
                 subjects.add(subject);
             }

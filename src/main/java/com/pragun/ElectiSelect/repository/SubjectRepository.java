@@ -41,4 +41,19 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
     List<Subject> findByCategoryIdAndSessionIdAndNotDeleted(
             @Param("categoryId") Long categoryId,
             @Param("sessionId") Long sessionId);
+
+    @Query("SELECT CASE WHEN COUNT(s.id) > 0 THEN true ELSE false END " +
+            "FROM Subject s WHERE s.session.id = :sessionId " +
+            "AND (s.isDeleted = false OR s.isDeleted IS NULL)")
+    boolean existsNonDeletedBySessionId(@Param("sessionId") Long sessionId);
+
+    @Query("SELECT s.session.id as sessionId, COUNT(s.id) as count " +
+            "FROM Subject s WHERE (s.isDeleted = false OR s.isDeleted IS NULL) " +
+            "GROUP BY s.session.id")
+    List<SessionSubjectCountProjection> countSubjectsBySession();
+
+    interface SessionSubjectCountProjection {
+        Long getSessionId();
+        Long getCount();
+    }
 }

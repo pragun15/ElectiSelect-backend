@@ -36,7 +36,7 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         String email = oAuth2User.getAttribute("email");
 
         // 🛡️ SECURITY LAYER 2: Domain Validation
-        if (email == null || !email.endsWith("@dsce.edu.in")) {
+        if (email == null ||!(email.endsWith("@dsce.edu.in") || email.endsWith("@dayanandasagar.edu"))) {
             getRedirectStrategy().sendRedirect(request, response, "http://localhost:5173/login?error=unauthorized_email");
             return;
         }
@@ -60,11 +60,6 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
             newUser.setName(cleanedName);
             newUser.setRole(Role.STUDENT); // Default
 
-            // Handle Super Admin
-            if (email.equals("santhosh-ise@dayanandasagar.edu")) {
-                newUser.setRole(Role.SUPER_ADMIN);
-            }
-
             User savedUser = userRepository.save(newUser);
 
             // Initialize Academic State (Rule: Manual update later)
@@ -75,6 +70,13 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
 
             return savedUser;
         });
+
+        // ✅ SUPER_ADMIN enforcement: always applied on every login, regardless of when user was created
+        boolean isSuperAdminEmail = email.equals("santhosh-ise@dayanandasagar.edu");
+        if (isSuperAdminEmail && user.getRole() != Role.SUPER_ADMIN) {
+            user.setRole(Role.SUPER_ADMIN);
+            userRepository.save(user);
+        }
 
         String token = jwtUtils.generateToken(email, user.getRole().name());
 

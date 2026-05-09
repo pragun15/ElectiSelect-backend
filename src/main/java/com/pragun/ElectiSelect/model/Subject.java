@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 @Entity
+@Table(uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"course_code", "session_id"})
+})
 @Data
 public class Subject {
     @Id
@@ -19,7 +22,7 @@ public class Subject {
     @JoinColumn(name = "category_id") // Nullable because Open Electives don't have categories
     private DeptCategory category;
 
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false)
     private String courseCode;
     private String title;
     private String department; // The offering department

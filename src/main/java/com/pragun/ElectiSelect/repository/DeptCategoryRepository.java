@@ -14,4 +14,8 @@ public interface DeptCategoryRepository extends JpaRepository<DeptCategory, Long
      * Used when building the dept-elective response grouped by category.
      */
     List<DeptCategory> findBySession_Id(Long sessionId);
+
+    long countBySession_Id(Long sessionId);
+    
+    DeptCategory findByCategoryNameAndSession_Id(String categoryName, Long sessionId);
 }

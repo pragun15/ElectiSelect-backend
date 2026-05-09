@@ -1,5 +1,9 @@
 package com.pragun.ElectiSelect.controller;
 
+import com.pragun.ElectiSelect.model.AdminDashboardStatsDTO;
+import com.pragun.ElectiSelect.model.AdminSessionDTO;
+import com.pragun.ElectiSelect.model.AdminStudentRowDTO;
+import com.pragun.ElectiSelect.model.PopularElectiveDTO;
 import com.pragun.ElectiSelect.model.Session;
 import com.pragun.ElectiSelect.service.*;
 import jakarta.servlet.http.HttpServletResponse;
@@ -20,11 +24,16 @@ public class AdminController {
     private final SessionService sessionService;
     private final SubjectService subjectService;
     private final RegistrationService registrationService;
+    private final AdminDashboardService adminDashboardService;
 
-    public AdminController(SessionService sessionService, SubjectService subjectService, RegistrationService registrationService) {
+    public AdminController(SessionService sessionService,
+                           SubjectService subjectService,
+                           RegistrationService registrationService,
+                           AdminDashboardService adminDashboardService) {
         this.sessionService = sessionService;
         this.subjectService = subjectService;
         this.registrationService = registrationService;
+        this.adminDashboardService = adminDashboardService;
     }
 
     @PostMapping("/sessions")
@@ -33,8 +42,8 @@ public class AdminController {
     }
 
     @GetMapping("/sessions")
-    public ResponseEntity<List<Session>> getAllSessions() {
-        return ResponseEntity.ok(sessionService.getAllSessions());
+    public ResponseEntity<List<AdminSessionDTO>> getAllSessions() {
+        return ResponseEntity.ok(adminDashboardService.getSessionOverview());
     }
 
     @PostMapping("/sessions/{sessionId}/upload-subjects")
@@ -42,6 +51,8 @@ public class AdminController {
         try {
             subjectService.uploadSubjectsFromExcel(file, sessionId);
             return ResponseEntity.ok("Subjects uploaded successfully.");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Error: " + e.getMessage());
         }
@@ -68,6 +79,29 @@ public class AdminController {
             }
             workbook.write(response.getOutputStream());
         }
+    }
+
+    // ── Dashboard (read-only) ───────────────────────────────────────────────
+
+    @GetMapping("/dashboard/stats")
+    public ResponseEntity<AdminDashboardStatsDTO> getDashboardStats() {
+        return ResponseEntity.ok(adminDashboardService.getDashboardStats());
+    }
+
+    @GetMapping("/dashboard/students")
+    public ResponseEntity<List<AdminStudentRowDTO>> getStudentRows() {
+        return ResponseEntity.ok(adminDashboardService.getStudentRows());
+    }
+
+    @GetMapping("/dashboard/sessions")
+    public ResponseEntity<List<AdminSessionDTO>> getSessionOverview() {
+        return ResponseEntity.ok(adminDashboardService.getSessionOverview());
+    }
+
+    @GetMapping("/dashboard/popular-electives")
+    public ResponseEntity<List<PopularElectiveDTO>> getPopularElectives(
+            @RequestParam(name = "limit", defaultValue = "5") int limit) {
+        return ResponseEntity.ok(adminDashboardService.getPopularElectives(limit));
     }
 }
 

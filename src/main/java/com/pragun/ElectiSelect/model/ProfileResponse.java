@@ -13,15 +13,29 @@ public class ProfileResponse {
     private final SessionInfo activeSession; // null when no active session for student's semester (kept for backward compat)
     private final SessionInfo openSession;   // active OPEN session for this semester, or null
     private final SessionInfo deptSession;   // active DEPARTMENT session for this semester, or null
+    
+    private final boolean openElectiveAvailable;
+    private final boolean deptElectiveAvailable;
 
     public ProfileResponse(User user, AcademicState state, Session openSession, Session deptSession) {
         this.user = new UserInfo(user);
         this.academicState = new AcademicStateInfo(state);
-        // activeSession: prefer OPEN for backward compat with OpenElective.jsx profile check
+        
         Session legacy = openSession != null ? openSession : deptSession;
         this.activeSession = legacy != null ? new SessionInfo(legacy) : null;
         this.openSession   = openSession != null ? new SessionInfo(openSession) : null;
         this.deptSession   = deptSession != null ? new SessionInfo(deptSession) : null;
+        
+        LocalDateTime now = LocalDateTime.now();
+        this.openElectiveAvailable = state != null && state.isEligible() && openSession != null && 
+                                     openSession.getIsActive() != null && openSession.getIsActive() &&
+                                     openSession.getStartTime() != null && openSession.getEndTime() != null &&
+                                     !now.isBefore(openSession.getStartTime()) && !now.isAfter(openSession.getEndTime());
+                                     
+        this.deptElectiveAvailable = state != null && state.isEligible() && deptSession != null && 
+                                     deptSession.getIsActive() != null && deptSession.getIsActive() &&
+                                     deptSession.getStartTime() != null && deptSession.getEndTime() != null &&
+                                     !now.isBefore(deptSession.getStartTime()) && !now.isAfter(deptSession.getEndTime());
     }
 
     public UserInfo         getUser()          { return user; }
@@ -29,6 +43,8 @@ public class ProfileResponse {
     public SessionInfo      getActiveSession() { return activeSession; }
     public SessionInfo      getOpenSession()   { return openSession; }
     public SessionInfo      getDeptSession()   { return deptSession; }
+    public boolean          isOpenElectiveAvailable() { return openElectiveAvailable; }
+    public boolean          isDeptElectiveAvailable() { return deptElectiveAvailable; }
 
     // ── Nested DTOs ────────────────────────────────────────────────────────────
 

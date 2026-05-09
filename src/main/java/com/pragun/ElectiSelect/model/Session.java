@@ -7,7 +7,10 @@ import java.time.LocalDateTime;
 
 @Entity
 @Data
-@Table(name = "sessions")
+@Table(
+    name = "sessions",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"type", "semester", "academic_year"})
+)
 public class Session {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -16,6 +19,7 @@ public class Session {
     @Enumerated(EnumType.STRING)
     private SessionType type;
     private int semester;
+    @Column(name = "academic_year")
     private String academicYear;
     private Boolean isActive = false;
     private LocalDateTime startTime;

@@ -10,10 +10,16 @@ error_log.txt
 # Secrets / temp scripts
 generate_jwt.js
 
-# Build
+# Build outputs
 target/
 dist/
+
+# Dependencies
 node_modules/
+
+# IDE
+.idea/
+.vscode/
 
 # OS
 .DS_Store

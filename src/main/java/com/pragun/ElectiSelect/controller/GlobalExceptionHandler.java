@@ -27,7 +27,9 @@ public class GlobalExceptionHandler {
             "NOT_ELIGIBLE",
             "DEPARTMENT_RESTRICTED",
             "SESSION_ALREADY_ACTIVE",
-            "SUBJECT_UNAVAILABLE"
+        "SESSION_ALREADY_EXISTS",
+        "SUBJECT_UNAVAILABLE",
+        "VALIDATION_FAILED"
     );
 
     // Human-readable messages paired to each code
@@ -38,14 +40,23 @@ public class GlobalExceptionHandler {
             "NOT_ELIGIBLE",           "You are not eligible to make a selection in this session.",
             "DEPARTMENT_RESTRICTED",  "Your department is not permitted to select this subject.",
             "SESSION_ALREADY_ACTIVE", "An active session of this type already exists.",
-            "SUBJECT_UNAVAILABLE",    "This subject is no longer available."
+        "SESSION_ALREADY_EXISTS", "Session already exists for this type, semester, and academic year.",
+        "SUBJECT_UNAVAILABLE",    "This subject is no longer available.",
+        "VALIDATION_FAILED",      "Validation failed."
     );
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ErrorResponse> handleRuntimeException(RuntimeException ex) {
         String raw = ex.getMessage() != null ? ex.getMessage() : "";
 
-        if (KNOWN_CODES.contains(raw)) {
+    if (raw.startsWith("VALIDATION_FAILED:")) {
+        String message = raw.substring("VALIDATION_FAILED:".length()).trim();
+        return ResponseEntity
+            .status(400)
+            .body(new ErrorResponse("VALIDATION_FAILED", message.isBlank() ? "Validation failed." : message));
+    }
+
+    if (KNOWN_CODES.contains(raw)) {
             String friendly = CODE_MESSAGES.getOrDefault(raw, raw);
             return ResponseEntity
                     .status(resolveHttpStatus(raw))
@@ -73,6 +84,7 @@ public class GlobalExceptionHandler {
         return switch (code) {
             case "ALREADY_SELECTED",
                  "NO_SEATS_AVAILABLE",
+              "SESSION_ALREADY_EXISTS",
                  "SESSION_ALREADY_ACTIVE"  -> 409;
             case "SESSION_INVALID",
                  "NOT_ELIGIBLE",
