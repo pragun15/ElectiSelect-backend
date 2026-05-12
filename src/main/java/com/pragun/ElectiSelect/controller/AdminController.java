@@ -5,6 +5,7 @@ import com.pragun.ElectiSelect.model.AdminSessionDTO;
 import com.pragun.ElectiSelect.model.AdminStudentDTO;
 import com.pragun.ElectiSelect.model.AdminStudentRowDTO;
 import com.pragun.ElectiSelect.model.PopularElectiveDTO;
+import com.pragun.ElectiSelect.model.PromotionResultDTO;
 import com.pragun.ElectiSelect.model.Session;
 import com.pragun.ElectiSelect.service.*;
 import jakarta.servlet.http.HttpServletResponse;
@@ -122,6 +123,16 @@ public class AdminController {
     @PatchMapping("/students/{id}/eligibility")
     public ResponseEntity<AdminStudentDTO> toggleEligibility(@PathVariable("id") Long id) {
         return ResponseEntity.ok(studentManagementService.toggleEligibility(id));
+    }
+
+    @PatchMapping("/students/{id}/promote")
+    public ResponseEntity<AdminStudentDTO> promoteStudent(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(studentManagementService.promoteStudent(id));
+    }
+
+    @PatchMapping("/students/promote-bulk")
+    public ResponseEntity<PromotionResultDTO> promoteBulk(@RequestParam("semester") int semester) {
+        return ResponseEntity.ok(studentManagementService.promoteBulk(semester));
     }
 }
 
