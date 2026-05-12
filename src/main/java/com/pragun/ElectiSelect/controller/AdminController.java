@@ -2,6 +2,7 @@ package com.pragun.ElectiSelect.controller;
 
 import com.pragun.ElectiSelect.model.AdminDashboardStatsDTO;
 import com.pragun.ElectiSelect.model.AdminSessionDTO;
+import com.pragun.ElectiSelect.model.AdminStudentDTO;
 import com.pragun.ElectiSelect.model.AdminStudentRowDTO;
 import com.pragun.ElectiSelect.model.PopularElectiveDTO;
 import com.pragun.ElectiSelect.model.Session;
@@ -25,15 +26,18 @@ public class AdminController {
     private final SubjectService subjectService;
     private final RegistrationService registrationService;
     private final AdminDashboardService adminDashboardService;
+    private final StudentManagementService studentManagementService;
 
     public AdminController(SessionService sessionService,
                            SubjectService subjectService,
                            RegistrationService registrationService,
-                           AdminDashboardService adminDashboardService) {
+                           AdminDashboardService adminDashboardService,
+                           StudentManagementService studentManagementService) {
         this.sessionService = sessionService;
         this.subjectService = subjectService;
         this.registrationService = registrationService;
         this.adminDashboardService = adminDashboardService;
+        this.studentManagementService = studentManagementService;
     }
 
     @PostMapping("/sessions")
@@ -102,6 +106,22 @@ public class AdminController {
     public ResponseEntity<List<PopularElectiveDTO>> getPopularElectives(
             @RequestParam(name = "limit", defaultValue = "5") int limit) {
         return ResponseEntity.ok(adminDashboardService.getPopularElectives(limit));
+    }
+
+    // ── Student Management (System Admin) ──────────────────────────────────
+
+    @GetMapping("/students")
+    public ResponseEntity<List<AdminStudentDTO>> getStudents(
+            @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "department", required = false) String department,
+            @RequestParam(name = "semester", required = false) Integer semester,
+            @RequestParam(name = "eligible", required = false) Boolean eligible) {
+        return ResponseEntity.ok(studentManagementService.getStudents(search, department, semester, eligible));
+    }
+
+    @PatchMapping("/students/{id}/eligibility")
+    public ResponseEntity<AdminStudentDTO> toggleEligibility(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(studentManagementService.toggleEligibility(id));
     }
 }
 

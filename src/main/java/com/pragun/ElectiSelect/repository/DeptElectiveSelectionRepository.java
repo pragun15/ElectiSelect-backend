@@ -19,6 +19,9 @@ public interface DeptElectiveSelectionRepository extends JpaRepository<DeptElect
 
 	boolean existsByStudentAndSession(User student, Session session);
 
+	// Student Management (admin analytics): any dept elective submission exists for student
+	boolean existsByStudent_Id(Long studentId);
+
 	@Query("SELECT d FROM DeptElectiveSelection d " +
 			"JOIN FETCH d.category c " +
 			"JOIN FETCH d.subject s " +

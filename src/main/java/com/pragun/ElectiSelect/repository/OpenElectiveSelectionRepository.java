@@ -21,6 +21,9 @@ public interface OpenElectiveSelectionRepository extends JpaRepository<OpenElect
     // A student can have at most one open-elective selection (enforced by DB UNIQUE constraint).
     Optional<OpenElectiveSelection> findFirstByStudentOrderByIdDesc(User student);
 
+    // Student Management (admin analytics): any open elective submission exists for student
+    boolean existsByStudent_Id(Long studentId);
+
     @Query("SELECT s.student.id as studentId, s.session.id as sessionId, COUNT(s.id) as count " +
             "FROM OpenElectiveSelection s GROUP BY s.student.id, s.session.id")
     List<SelectionCountProjection> countByStudentAndSession();

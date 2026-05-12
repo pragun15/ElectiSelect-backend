@@ -14,6 +14,9 @@ public class AcademicState {
     @JoinColumn(name = "user_id")
     private User user;
 
+    @Column(name = "current_semester")
     private int currentSemester;
+
+    @Column(name = "is_eligible")
     private boolean isEligible = true;
 }
