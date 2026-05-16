@@ -12,7 +12,9 @@ import java.util.stream.Collectors;
 @Service
 public class AdminDashboardService {
 
+
     private final UserRepository userRepository;
+    private final AcademicStateRepository academicStateRepository;
     private final SessionRepository sessionRepository;
     private final DeptCategoryRepository deptCategoryRepository;
     private final SubjectRepository subjectRepository;
@@ -20,12 +22,14 @@ public class AdminDashboardService {
     private final DeptElectiveSelectionRepository deptElectiveSelectionRepository;
 
     public AdminDashboardService(UserRepository userRepository,
+                                 AcademicStateRepository academicStateRepository,
                                  SessionRepository sessionRepository,
                                  DeptCategoryRepository deptCategoryRepository,
                                  SubjectRepository subjectRepository,
                                  OpenElectiveSelectionRepository openElectiveSelectionRepository,
                                  DeptElectiveSelectionRepository deptElectiveSelectionRepository) {
         this.userRepository = userRepository;
+        this.academicStateRepository = academicStateRepository;
         this.sessionRepository = sessionRepository;
         this.deptCategoryRepository = deptCategoryRepository;
         this.subjectRepository = subjectRepository;
@@ -126,8 +130,8 @@ public class AdminDashboardService {
     }
 
     public List<PopularElectiveDTO> getPopularElectives(int limit) {
-        return openElectiveSelectionRepository
-                .findPopularOpenElectives(PageRequest.of(0, Math.max(1, limit)))
+    return openElectiveSelectionRepository
+        .findPopularOpenElectives(PageRequest.of(0, Math.max(1, limit)))
                 .stream()
                 .map(p -> new PopularElectiveDTO(
                         p.getSubjectId(),
@@ -138,6 +142,70 @@ public class AdminDashboardService {
                         p.getMaxSeats(),
                         p.getCredits()))
                 .collect(Collectors.toList());
+    }
+
+    public AdminAnalyticsDTO getAdminAnalytics(int limit) {
+    long totalStudents = userRepository.countByRole(Role.STUDENT);
+    long eligibleStudents = academicStateRepository.countByIsEligibleTrue();
+    long ineligibleStudents = academicStateRepository.countByIsEligibleFalse();
+    long openElectiveParticipants = openElectiveSelectionRepository.countDistinctStudents();
+    long deptElectiveParticipants = deptElectiveSelectionRepository.countDistinctStudents();
+
+    List<DepartmentCountDTO> departmentCounts = userRepository
+        .countStudentsByDepartment(Role.STUDENT)
+        .stream()
+        .map(row -> new DepartmentCountDTO(
+            row.getDepartment() == null ? "" : row.getDepartment(),
+            row.getCount() == null ? 0L : row.getCount()))
+        .collect(Collectors.toList());
+
+    List<SemesterCountDTO> semesterCounts = academicStateRepository
+        .countStudentsBySemester()
+        .stream()
+        .map(row -> new SemesterCountDTO(
+            row.getSemester() == null ? 0 : row.getSemester(),
+            row.getCount() == null ? 0L : row.getCount()))
+        .collect(Collectors.toList());
+
+    int safeLimit = Math.max(1, limit);
+    List<PopularElectiveDTO> openElectivePopular = openElectiveSelectionRepository
+        .findPopularOpenElectives(PageRequest.of(0, safeLimit))
+        .stream()
+        .map(p -> new PopularElectiveDTO(
+            p.getSubjectId(),
+            p.getCourseCode(),
+            p.getTitle(),
+            p.getSelectionCount(),
+            p.getFilledSeats(),
+            p.getMaxSeats(),
+            p.getCredits()))
+        .collect(Collectors.toList());
+
+    List<PopularElectiveDTO> deptElectivePopular = deptElectiveSelectionRepository
+        .findPopularDeptElectives(PageRequest.of(0, safeLimit))
+        .stream()
+        .map(p -> new PopularElectiveDTO(
+            p.getSubjectId(),
+            p.getCourseCode(),
+            p.getTitle(),
+            p.getSelectionCount(),
+            p.getFilledSeats(),
+            p.getMaxSeats(),
+            p.getCredits()))
+        .collect(Collectors.toList());
+
+
+    return new AdminAnalyticsDTO(
+        totalStudents,
+        eligibleStudents,
+        ineligibleStudents,
+        openElectiveParticipants,
+        deptElectiveParticipants,
+        departmentCounts,
+        semesterCounts,
+        openElectivePopular,
+        deptElectivePopular
+    );
     }
 
     private Map<String, Long> buildSelectionCountMap(List<? extends SelectionCountProjection> rows) {

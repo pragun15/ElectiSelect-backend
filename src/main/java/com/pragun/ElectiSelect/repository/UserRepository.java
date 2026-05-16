@@ -18,7 +18,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // This method will be used later for Google OAuth login logic
     Optional<User> findByEmail(String email);
 
+    boolean existsByEmail(String email);
+    boolean existsByUsn(String usn);
+
     long countByRole(Role role);
+
+    @Query("SELECT u.department as department, COUNT(u.id) as count " +
+        "FROM User u WHERE u.role = :role GROUP BY u.department")
+    List<DepartmentCountProjection> countStudentsByDepartment(@Param("role") Role role);
 
     @Query("SELECT u.id as userId, u.name as name, u.usn as usn, u.department as department, " +
             "s.currentSemester as currentSemester, s.isEligible as eligible " +
@@ -60,5 +67,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
         String getDepartment();
         Integer getCurrentSemester();
         Boolean getEligible();
+    }
+
+    interface DepartmentCountProjection {
+        String getDepartment();
+        Long getCount();
     }
 }

@@ -4,9 +4,11 @@ import com.pragun.ElectiSelect.model.AdminDashboardStatsDTO;
 import com.pragun.ElectiSelect.model.AdminSessionDTO;
 import com.pragun.ElectiSelect.model.AdminStudentDTO;
 import com.pragun.ElectiSelect.model.AdminStudentRowDTO;
+import com.pragun.ElectiSelect.model.AdminAnalyticsDTO;
 import com.pragun.ElectiSelect.model.PopularElectiveDTO;
 import com.pragun.ElectiSelect.model.PromotionResultDTO;
 import com.pragun.ElectiSelect.model.Session;
+import com.pragun.ElectiSelect.model.StudentImportResultDTO;
 import com.pragun.ElectiSelect.service.*;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.poi.ss.usermodel.*;
@@ -22,6 +24,7 @@ import java.util.List;
 @RequestMapping("/api/admin")
 @PreAuthorize("hasRole('SUPER_ADMIN')")
 public class AdminController {
+
 
     private final SessionService sessionService;
     private final SubjectService subjectService;
@@ -109,6 +112,12 @@ public class AdminController {
         return ResponseEntity.ok(adminDashboardService.getPopularElectives(limit));
     }
 
+    @GetMapping("/analytics")
+    public ResponseEntity<AdminAnalyticsDTO> getAdminAnalytics(
+            @RequestParam(name = "limit", defaultValue = "5") int limit) {
+        return ResponseEntity.ok(adminDashboardService.getAdminAnalytics(limit));
+    }
+
     // ── Student Management (System Admin) ──────────────────────────────────
 
     @GetMapping("/students")
@@ -133,6 +142,57 @@ public class AdminController {
     @PatchMapping("/students/promote-bulk")
     public ResponseEntity<PromotionResultDTO> promoteBulk(@RequestParam("semester") int semester) {
         return ResponseEntity.ok(studentManagementService.promoteBulk(semester));
+    }
+
+    @PostMapping("/students/import")
+    public ResponseEntity<StudentImportResultDTO> importStudents(
+            @RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        try {
+            StudentImportResultDTO result = studentManagementService.importStudentsFromCsv(file);
+            return ResponseEntity.ok(result);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    @GetMapping("/students/export")
+    public void exportStudentsCsv(HttpServletResponse response) throws IOException {
+        response.setContentType("text/csv");
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Content-Disposition", "attachment; filename=students.csv");
+
+        List<AdminStudentDTO> students = studentManagementService.getAllStudentsForExport();
+
+        StringBuilder csv = new StringBuilder();
+        csv.append("name,email,usn,department,semester,eligible,role,openElectiveSubmitted,deptElectiveSubmitted\n");
+
+        for (AdminStudentDTO s : students) {
+            csv.append(toCsvField(s.getName())).append(',')
+               .append(toCsvField(s.getEmail())).append(',')
+               .append(toCsvField(s.getUsn())).append(',')
+               .append(toCsvField(s.getDepartment())).append(',')
+               .append(s.getSemester() == null ? "" : s.getSemester()).append(',')
+               .append(s.isEligible()).append(',')
+               .append(s.getRole() == null ? "" : s.getRole().name()).append(',')
+               .append(s.isOpenElectiveSubmitted()).append(',')
+               .append(s.isDeptElectiveSubmitted()).append('\n');
+        }
+
+        response.getWriter().write(csv.toString());
+    }
+
+    private String toCsvField(String value) {
+        if (value == null) {
+            return "";
+        }
+        String normalized = value.replace("\r", " ").replace("\n", " ");
+        if (normalized.contains(",") || normalized.contains("\"") || normalized.contains("\n")) {
+            return "\"" + normalized.replace("\"", "\"\"") + "\"";
+        }
+        return normalized;
     }
 }
 

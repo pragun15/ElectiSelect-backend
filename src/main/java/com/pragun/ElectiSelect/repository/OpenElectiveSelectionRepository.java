@@ -24,17 +24,20 @@ public interface OpenElectiveSelectionRepository extends JpaRepository<OpenElect
     // Student Management (admin analytics): any open elective submission exists for student
     boolean existsByStudent_Id(Long studentId);
 
+    @Query("SELECT COUNT(DISTINCT s.student.id) FROM OpenElectiveSelection s")
+    long countDistinctStudents();
+
     @Query("SELECT s.student.id as studentId, s.session.id as sessionId, COUNT(s.id) as count " +
             "FROM OpenElectiveSelection s GROUP BY s.student.id, s.session.id")
     List<SelectionCountProjection> countByStudentAndSession();
 
     @Query("SELECT subj.id as subjectId, subj.courseCode as courseCode, subj.title as title, " +
-            "COUNT(sel.id) as selectionCount, subj.filled_seats as filledSeats, subj.maxSeats as maxSeats, " +
-            "subj.credits as credits " +
-            "FROM OpenElectiveSelection sel JOIN sel.subject subj " +
-            "WHERE (subj.isDeleted = false OR subj.isDeleted IS NULL) " +
-            "GROUP BY subj.id, subj.courseCode, subj.title, subj.filled_seats, subj.maxSeats, subj.credits " +
-            "ORDER BY COUNT(sel.id) DESC")
+        "COUNT(sel.id) as selectionCount, subj.filled_seats as filledSeats, subj.maxSeats as maxSeats, " +
+        "subj.credits as credits " +
+        "FROM OpenElectiveSelection sel JOIN sel.subject subj " +
+        "WHERE (subj.isDeleted = false OR subj.isDeleted IS NULL) " +
+        "GROUP BY subj.id, subj.courseCode, subj.title, subj.filled_seats, subj.maxSeats, subj.credits " +
+        "ORDER BY COUNT(sel.id) DESC")
     List<PopularElectiveProjection> findPopularOpenElectives(Pageable pageable);
 
     interface PopularElectiveProjection {

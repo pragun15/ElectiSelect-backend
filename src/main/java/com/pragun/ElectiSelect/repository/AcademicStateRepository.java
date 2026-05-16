@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -18,10 +19,31 @@ public interface AcademicStateRepository extends JpaRepository<AcademicState, Lo
 
     long countByCurrentSemester(int currentSemester);
 
+    @Query("SELECT COUNT(s.userId) FROM AcademicState s " +
+        "JOIN s.user u " +
+        "WHERE u.role = com.pragun.ElectiSelect.model.Role.STUDENT AND s.isEligible = true")
+    long countByIsEligibleTrue();
+
+    @Query("SELECT COUNT(s.userId) FROM AcademicState s " +
+        "JOIN s.user u " +
+        "WHERE u.role = com.pragun.ElectiSelect.model.Role.STUDENT AND s.isEligible = false")
+    long countByIsEligibleFalse();
+
+    @Query("SELECT s.currentSemester as semester, COUNT(s.userId) as count " +
+        "FROM AcademicState s JOIN s.user u " +
+        "WHERE u.role = com.pragun.ElectiSelect.model.Role.STUDENT " +
+        "GROUP BY s.currentSemester")
+    List<SemesterCountProjection> countStudentsBySemester();
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE AcademicState s SET s.currentSemester = s.currentSemester + 1 " +
            "WHERE s.currentSemester = :semester")
     int bulkPromoteSemester(@Param("semester") int semester);
+
+    interface SemesterCountProjection {
+        Integer getSemester();
+        Long getCount();
+    }
 
 
 }
