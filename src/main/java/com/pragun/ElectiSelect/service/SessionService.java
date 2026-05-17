@@ -18,6 +18,8 @@ public class SessionService {
 
     @Transactional
     public Session createSession(Session session) {
+        com.pragun.ElectiSelect.util.ValidationUtils.validateAcademicYear(session.getAcademicYear());
+
         boolean duplicateExists = sessionRepository.existsByTypeAndSemesterAndAcademicYear(
                 session.getType(),
                 session.getSemester(),

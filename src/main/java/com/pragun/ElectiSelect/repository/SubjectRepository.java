@@ -52,6 +52,10 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
             "GROUP BY s.session.id")
     List<SessionSubjectCountProjection> countSubjectsBySession();
 
+    @Query("SELECT s.courseCode FROM Subject s WHERE s.session.id = :sessionId " +
+            "AND (s.isDeleted = false OR s.isDeleted IS NULL)")
+    List<String> findCourseCodesBySessionId(@Param("sessionId") Long sessionId);
+
     interface SessionSubjectCountProjection {
         Long getSessionId();
         Long getCount();

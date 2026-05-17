@@ -30,6 +30,7 @@ public class AdminSessionDTO {
     public String getType() { return type; }
     public int getSemester() { return semester; }
     public String getAcademicYear() { return academicYear; }
+    @com.fasterxml.jackson.annotation.JsonProperty("active")
     public boolean isActive() { return active; }
     public LocalDateTime getStartTime() { return startTime; }
     public LocalDateTime getEndTime() { return endTime; }

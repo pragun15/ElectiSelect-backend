@@ -17,4 +17,13 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     boolean existsByTypeAndSemesterAndAcademicYear(SessionType type, int semester, String academicYear);
 
     Session findTopBySemesterAndTypeOrderByIdDesc(int semester, SessionType type);
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT s FROM Session s " +
+        "WHERE (:type IS NULL OR s.type = :type) " +
+        "AND (:semester IS NULL OR s.semester = :semester) " +
+        "AND (:academicYear IS NULL OR s.academicYear = :academicYear)")
+    List<Session> findFilteredSessions(
+        @org.springframework.data.repository.query.Param("type") SessionType type,
+        @org.springframework.data.repository.query.Param("semester") Integer semester,
+        @org.springframework.data.repository.query.Param("academicYear") String academicYear);
 }

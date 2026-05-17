@@ -6,6 +6,11 @@ import com.pragun.ElectiSelect.model.Session;
 import com.pragun.ElectiSelect.model.SessionType;
 import com.pragun.ElectiSelect.model.Subject;
 import com.pragun.ElectiSelect.model.SubjectDTO;
+import com.pragun.ElectiSelect.model.SubjectUploadConfirmRequestDTO;
+import com.pragun.ElectiSelect.model.SubjectUploadConfirmResultDTO;
+import com.pragun.ElectiSelect.model.SubjectUploadErrorDTO;
+import com.pragun.ElectiSelect.model.SubjectUploadPreviewDTO;
+import com.pragun.ElectiSelect.model.SubjectUploadRowDTO;
 import com.pragun.ElectiSelect.repository.DeptCategoryRepository;
 import com.pragun.ElectiSelect.repository.SessionRepository;
 import com.pragun.ElectiSelect.repository.SubjectRepository;
@@ -17,7 +22,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -120,6 +130,75 @@ public class SubjectService {
         }
     }
 
+    public SubjectUploadPreviewDTO previewSubjectUpload(MultipartFile file, Long sessionId) throws Exception {
+        Session session = loadSessionForUpload(sessionId);
+        ensureSessionUploadAllowed(sessionId, session);
+
+        List<String> existingCodes = subjectRepository.findCourseCodesBySessionId(sessionId);
+        Set<String> existingCodeSet = existingCodes.stream()
+                .filter(code -> code != null)
+                .map(code -> code.trim().toUpperCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+
+        ParsedUploadResult parsed = parseSubjectWorkbook(file, existingCodeSet);
+        return new SubjectUploadPreviewDTO(
+                parsed.totalRows,
+                parsed.validRows.size(),
+                parsed.invalidRows.size(),
+                parsed.validRows,
+                parsed.invalidRows
+        );
+    }
+
+    @Transactional
+    public SubjectUploadConfirmResultDTO confirmSubjectUpload(SubjectUploadConfirmRequestDTO request) {
+        if (request == null || request.getSessionId() == null) {
+            throw new RuntimeException("Session must be selected before confirming upload.");
+        }
+
+        Session session = loadSessionForUpload(request.getSessionId());
+        ensureSessionUploadAllowed(request.getSessionId(), session);
+
+        List<String> existingCodes = subjectRepository.findCourseCodesBySessionId(request.getSessionId());
+        Set<String> existingCodeSet = existingCodes.stream()
+                .filter(code -> code != null)
+                .map(code -> code.trim().toUpperCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+
+        Set<String> seenCodes = new HashSet<>();
+        List<String> skippedCodes = new ArrayList<>();
+        List<Subject> subjects = new ArrayList<>();
+
+        if (request.getSubjects() != null) {
+            for (SubjectUploadRowDTO row : request.getSubjects()) {
+                String normalizedCode = normalizeCode(row == null ? null : row.getCourseCode());
+                if (normalizedCode == null) {
+                    skippedCodes.add(null);
+                    continue;
+                }
+                if (existingCodeSet.contains(normalizedCode) || seenCodes.contains(normalizedCode)) {
+                    skippedCodes.add(normalizedCode);
+                    continue;
+                }
+                seenCodes.add(normalizedCode);
+
+                Subject subject = new Subject();
+                subject.setSession(session);
+                subject.setCourseCode(normalizedCode);
+                subject.setTitle(safeValue(row.getTitle()));
+                subject.setDepartment(safeValue(row.getDepartment()));
+                subject.setMaxSeats(row.getMaxSeats() == null ? 0 : row.getMaxSeats());
+                subject.setFilled_seats(0);
+                subject.setRestrictedDepts(normalizeRestricted(row.getRestrictedDepts()));
+                subject.setCredits(row.getCredits() == null ? 0 : row.getCredits());
+                subjects.add(subject);
+            }
+        }
+
+        subjectRepository.saveAll(subjects);
+        return new SubjectUploadConfirmResultDTO(subjects.size(), skippedCodes.size(), skippedCodes);
+    }
+
     // Legacy — kept to avoid breaking other callers.
     public List<Subject> getAvailableSubjectsForSemester(int semester) {
         return subjectRepository.findBySession_IsActiveTrueAndSession_SemesterAndIsDeletedFalse(semester);
@@ -174,6 +253,269 @@ public class SubjectService {
         return Arrays.stream(restricted.split(","))
                 .map(String::trim)
                 .noneMatch(dept -> dept.equalsIgnoreCase(studentDepartment));
+    }
+
+    private Session loadSessionForUpload(Long sessionId) {
+        return sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new RuntimeException("Session not found"));
+    }
+
+    private void ensureSessionUploadAllowed(Long sessionId, Session session) {
+        if (session.getIsActive() != null && session.getIsActive()) {
+            throw new RuntimeException("Cannot upload subjects into an active session.");
+        }
+
+        boolean hasSubjects = subjectRepository.existsNonDeletedBySessionId(sessionId);
+        if (hasSubjects) {
+            throw new RuntimeException("This session already contains uploaded subjects. Re-upload is currently disabled.");
+        }
+    }
+
+    private ParsedUploadResult parseSubjectWorkbook(MultipartFile file, Set<String> existingCodes) throws Exception {
+        DataFormatter formatter = new DataFormatter();
+        try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
+            Sheet sheet = workbook.getSheetAt(0);
+            HeaderMapping header = findHeaderRow(sheet, formatter);
+            if (header == null) {
+                throw new RuntimeException("Unable to locate header row. Please ensure the file contains Course Code and Course Title columns.");
+            }
+
+            List<SubjectUploadRowDTO> validRows = new ArrayList<>();
+            List<SubjectUploadErrorDTO> invalidRows = new ArrayList<>();
+            Set<String> seenCodes = new HashSet<>();
+            int totalRows = 0;
+
+            for (int i = header.rowIndex + 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null || isRowEmpty(row, formatter)) {
+                    continue;
+                }
+
+                totalRows++;
+                String courseCode = getCellValue(row, header.courseCodeIndex, formatter);
+                String title = getCellValue(row, header.titleIndex, formatter);
+                String department = getCellValue(row, header.departmentIndex, formatter);
+                String maxSeatsRaw = getCellValue(row, header.maxSeatsIndex, formatter);
+                String restrictedRaw = header.restrictedIndex == null ? null : getCellValue(row, header.restrictedIndex, formatter);
+                String creditsRaw = header.creditsIndex == null ? null : getCellValue(row, header.creditsIndex, formatter);
+
+                String normalizedCode = normalizeCode(courseCode);
+                String normalizedTitle = safeValue(title);
+                String normalizedDepartment = safeValue(department);
+
+                String error = null;
+                if (normalizedCode == null) {
+                    error = "Missing course code";
+                } else if (normalizedTitle == null) {
+                    error = "Missing course title";
+                } else if (normalizedDepartment == null) {
+                    error = "Missing department";
+                }
+
+                Integer maxSeats = parseInteger(maxSeatsRaw);
+                if (error == null && (maxSeats == null || maxSeats <= 0)) {
+                    error = "Invalid seat count";
+                }
+
+                Integer credits = parseInteger(creditsRaw);
+                if (credits == null) {
+                    credits = 0;
+                }
+
+                if (error == null) {
+                    if (existingCodes.contains(normalizedCode)) {
+                        error = "Duplicate course code in database";
+                    } else if (seenCodes.contains(normalizedCode)) {
+                        error = "Duplicate course code in file";
+                    }
+                }
+
+                if (error != null) {
+                    invalidRows.add(new SubjectUploadErrorDTO(i + 1, normalizedCode, normalizedTitle, error));
+                    continue;
+                }
+
+                seenCodes.add(normalizedCode);
+                validRows.add(new SubjectUploadRowDTO(
+                        normalizedCode,
+                        normalizedTitle,
+                        normalizedDepartment,
+                        maxSeats,
+                        normalizeRestricted(restrictedRaw),
+                        credits
+                ));
+            }
+
+            return new ParsedUploadResult(totalRows, validRows, invalidRows);
+        }
+    }
+
+    private HeaderMapping findHeaderRow(Sheet sheet, DataFormatter formatter) {
+        int maxScanRows = Math.min(sheet.getLastRowNum(), 50);
+        for (int i = 0; i <= maxScanRows; i++) {
+            Row row = sheet.getRow(i);
+            if (row == null) {
+                continue;
+            }
+
+            Map<String, Integer> headerMap = new HashMap<>();
+            for (Cell cell : row) {
+                String value = formatter.formatCellValue(cell);
+                if (value == null) {
+                    continue;
+                }
+                // Normalize: trim outer whitespace and collapse internal repeated spaces
+                String normalized = value.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+                if (normalized.isEmpty()) {
+                    continue;
+                }
+
+                // Course Code aliases: "course code", "subject code", "code"
+                if (normalized.contains("course code")
+                        || normalized.contains("subject code")
+                        || normalized.equals("code")) {
+                    headerMap.put("courseCode", cell.getColumnIndex());
+
+                // Course Title aliases: "course title", "subject title", "title"
+                } else if (normalized.contains("course title")
+                        || normalized.contains("subject title")
+                        || normalized.equals("title")) {
+                    headerMap.put("title", cell.getColumnIndex());
+
+                // Department aliases: "department name", "department", "dept"
+                } else if (normalized.contains("department")
+                        || normalized.equals("dept")) {
+                    headerMap.put("department", cell.getColumnIndex());
+
+                // Max Seats aliases: "max no. of students", "max seats", "seats"
+                } else if ((normalized.contains("max") && normalized.contains("student"))
+                        || normalized.equals("max seats")
+                        || normalized.equals("seats")) {
+                    headerMap.put("maxSeats", cell.getColumnIndex());
+
+                // Restricted Departments aliases: "should not be offered to",
+                // "not be offered", "restricted departments", "restricted depts"
+                } else if (normalized.contains("should not")
+                        || normalized.contains("not be offered")
+                        || normalized.contains("restricted department")
+                        || normalized.contains("restricted dept")) {
+                    headerMap.put("restricted", cell.getColumnIndex());
+
+                // Credits aliases: "credits", "credit"
+                } else if (normalized.contains("credit")) {
+                    headerMap.put("credits", cell.getColumnIndex());
+                }
+            }
+
+            if (headerMap.containsKey("courseCode") && headerMap.containsKey("title") && headerMap.containsKey("maxSeats")) {
+                HeaderMapping mapping = new HeaderMapping();
+                mapping.rowIndex = i;
+                mapping.courseCodeIndex = headerMap.get("courseCode");
+                mapping.titleIndex = headerMap.get("title");
+                mapping.departmentIndex = headerMap.get("department");
+                mapping.maxSeatsIndex = headerMap.get("maxSeats");
+                mapping.restrictedIndex = headerMap.get("restricted");
+                mapping.creditsIndex = headerMap.get("credits");
+                return mapping;
+            }
+        }
+        return null;
+    }
+
+    private String getCellValue(Row row, Integer index, DataFormatter formatter) {
+        if (index == null) {
+            return null;
+        }
+        Cell cell = row.getCell(index);
+        if (cell == null) {
+            return null;
+        }
+        String value = formatter.formatCellValue(cell);
+        return value == null ? null : value.trim();
+    }
+
+    private boolean isRowEmpty(Row row, DataFormatter formatter) {
+        for (Cell cell : row) {
+            String value = formatter.formatCellValue(cell);
+            if (value != null && !value.trim().isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Integer parseInteger(String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return null;
+        }
+        String cleaned = raw.trim().replaceAll("[^0-9]", "");
+        if (cleaned.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(cleaned);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private String normalizeCode(String code) {
+        if (code == null || code.trim().isEmpty()) {
+            return null;
+        }
+        return code.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String safeValue(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private String normalizeRestricted(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String normalized = raw.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        String lowered = normalized.toLowerCase(Locale.ROOT);
+        if (lowered.equals("-") || lowered.equals("--") || lowered.equals("---") || lowered.equals("----") || lowered.equals("na") || lowered.equals("n/a")) {
+            return null;
+        }
+
+        List<String> parts = Arrays.stream(normalized.split(","))
+                .map(String::trim)
+                .filter(part -> !part.isEmpty())
+                .collect(Collectors.toList());
+        if (parts.isEmpty()) {
+            return null;
+        }
+        return String.join(",", parts);
+    }
+
+    private static class HeaderMapping {
+        private int rowIndex;
+        private Integer courseCodeIndex;
+        private Integer titleIndex;
+        private Integer departmentIndex;
+        private Integer maxSeatsIndex;
+        private Integer restrictedIndex;
+        private Integer creditsIndex;
+    }
+
+    private static class ParsedUploadResult {
+        private final int totalRows;
+        private final List<SubjectUploadRowDTO> validRows;
+        private final List<SubjectUploadErrorDTO> invalidRows;
+
+        private ParsedUploadResult(int totalRows, List<SubjectUploadRowDTO> validRows, List<SubjectUploadErrorDTO> invalidRows) {
+            this.totalRows = totalRows;
+            this.validRows = validRows;
+            this.invalidRows = invalidRows;
+        }
     }
 
     /**

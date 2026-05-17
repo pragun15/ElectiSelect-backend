@@ -19,21 +19,18 @@ public interface AcademicStateRepository extends JpaRepository<AcademicState, Lo
 
     long countByCurrentSemester(int currentSemester);
 
-    @Query("SELECT COUNT(s.userId) FROM AcademicState s " +
-        "JOIN s.user u " +
-        "WHERE u.role = com.pragun.ElectiSelect.model.Role.STUDENT AND s.isEligible = true")
-    long countByIsEligibleTrue();
-
-    @Query("SELECT COUNT(s.userId) FROM AcademicState s " +
-        "JOIN s.user u " +
-        "WHERE u.role = com.pragun.ElectiSelect.model.Role.STUDENT AND s.isEligible = false")
-    long countByIsEligibleFalse();
+    @Query("SELECT COUNT(s.userId) FROM AcademicState s JOIN s.user u " +
+        "WHERE u.role = com.pragun.ElectiSelect.model.Role.STUDENT " +
+        "AND (:isEligible IS NULL OR s.isEligible = :isEligible) " +
+        "AND (:semesters IS NULL OR s.currentSemester IN :semesters)")
+    long countStudentsFiltered(@Param("isEligible") Boolean isEligible, @Param("semesters") List<Integer> semesters);
 
     @Query("SELECT s.currentSemester as semester, COUNT(s.userId) as count " +
         "FROM AcademicState s JOIN s.user u " +
         "WHERE u.role = com.pragun.ElectiSelect.model.Role.STUDENT " +
+        "AND (:semesters IS NULL OR s.currentSemester IN :semesters) " +
         "GROUP BY s.currentSemester")
-    List<SemesterCountProjection> countStudentsBySemester();
+    List<SemesterCountProjection> countStudentsBySemesterFiltered(@Param("semesters") List<Integer> semesters);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE AcademicState s SET s.currentSemester = s.currentSemester + 1 " +

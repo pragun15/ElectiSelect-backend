@@ -45,6 +45,8 @@ public class RegistrationService {
         }
 
         // ── Step 2: Check seat availability ────────────────────────────────────
+        // TODO: Future-Safe Improvement
+        // Handle pseudo-unlimited logic where maxSeats = 0 or 999 is treated as unlimited.
         if (subject.getFilled_seats() >= subject.getMaxSeats()) {
             throw new RuntimeException("NO_SEATS_AVAILABLE");
         }

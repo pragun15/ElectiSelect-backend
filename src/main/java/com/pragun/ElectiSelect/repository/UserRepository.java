@@ -23,9 +23,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     long countByRole(Role role);
 
+    @Query("SELECT COUNT(u) FROM User u LEFT JOIN AcademicState s ON s.user = u " +
+           "WHERE u.role = :role " +
+           "AND (:semesters IS NULL OR s.currentSemester IN :semesters)")
+    long countFilteredStudents(@Param("role") Role role, @Param("semesters") List<Integer> semesters);
+
     @Query("SELECT u.department as department, COUNT(u.id) as count " +
-        "FROM User u WHERE u.role = :role GROUP BY u.department")
-    List<DepartmentCountProjection> countStudentsByDepartment(@Param("role") Role role);
+        "FROM User u LEFT JOIN AcademicState s ON s.user = u " +
+        "WHERE u.role = :role " +
+        "AND (:semesters IS NULL OR s.currentSemester IN :semesters) " +
+        "GROUP BY u.department")
+    List<DepartmentCountProjection> countStudentsByDepartmentFiltered(@Param("role") Role role, @Param("semesters") List<Integer> semesters);
 
     @Query("SELECT u.id as userId, u.name as name, u.usn as usn, u.department as department, " +
             "s.currentSemester as currentSemester, s.isEligible as eligible " +

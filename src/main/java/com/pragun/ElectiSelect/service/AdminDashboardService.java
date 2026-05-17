@@ -131,7 +131,7 @@ public class AdminDashboardService {
 
     public List<PopularElectiveDTO> getPopularElectives(int limit) {
     return openElectiveSelectionRepository
-        .findPopularOpenElectives(PageRequest.of(0, Math.max(1, limit)))
+        .findPopularOpenElectivesFiltered(null, PageRequest.of(0, Math.max(1, limit)))
                 .stream()
                 .map(p -> new PopularElectiveDTO(
                         p.getSubjectId(),
@@ -144,68 +144,98 @@ public class AdminDashboardService {
                 .collect(Collectors.toList());
     }
 
-    public AdminAnalyticsDTO getAdminAnalytics(int limit) {
-    long totalStudents = userRepository.countByRole(Role.STUDENT);
-    long eligibleStudents = academicStateRepository.countByIsEligibleTrue();
-    long ineligibleStudents = academicStateRepository.countByIsEligibleFalse();
-    long openElectiveParticipants = openElectiveSelectionRepository.countDistinctStudents();
-    long deptElectiveParticipants = deptElectiveSelectionRepository.countDistinctStudents();
+    public AdminAnalyticsDTO getAdminAnalytics(int limit, AnalyticsFilterDTO filter) {
+        List<Session> matchedSessions = null;
+        List<Long> matchedSessionIds = null;
+        List<Integer> matchedSemesters = null;
 
-    List<DepartmentCountDTO> departmentCounts = userRepository
-        .countStudentsByDepartment(Role.STUDENT)
-        .stream()
-        .map(row -> new DepartmentCountDTO(
-            row.getDepartment() == null ? "" : row.getDepartment(),
-            row.getCount() == null ? 0L : row.getCount()))
-        .collect(Collectors.toList());
+        boolean isGlobal = filter == null || filter.isEmpty();
 
-    List<SemesterCountDTO> semesterCounts = academicStateRepository
-        .countStudentsBySemester()
-        .stream()
-        .map(row -> new SemesterCountDTO(
-            row.getSemester() == null ? 0 : row.getSemester(),
-            row.getCount() == null ? 0L : row.getCount()))
-        .collect(Collectors.toList());
+        if (!isGlobal) {
+            if (filter.getSessionId() != null) {
+                Session s = sessionRepository.findById(filter.getSessionId()).orElse(null);
+                matchedSessions = s != null ? Collections.singletonList(s) : Collections.emptyList();
+            } else {
+                SessionType typeEnum = null;
+                if (filter.getType() != null && !filter.getType().trim().isEmpty()) {
+                    try { typeEnum = SessionType.valueOf(filter.getType().toUpperCase()); } catch (Exception ignored) {}
+                }
+                matchedSessions = sessionRepository.findFilteredSessions(typeEnum, filter.getSemester(), filter.getAcademicYear());
+            }
 
-    int safeLimit = Math.max(1, limit);
-    List<PopularElectiveDTO> openElectivePopular = openElectiveSelectionRepository
-        .findPopularOpenElectives(PageRequest.of(0, safeLimit))
-        .stream()
-        .map(p -> new PopularElectiveDTO(
-            p.getSubjectId(),
-            p.getCourseCode(),
-            p.getTitle(),
-            p.getSelectionCount(),
-            p.getFilledSeats(),
-            p.getMaxSeats(),
-            p.getCredits()))
-        .collect(Collectors.toList());
+            if (matchedSessions.isEmpty()) {
+                // If filters were applied but NO sessions matched, return empty analytics to prevent cross-contamination.
+                return new AdminAnalyticsDTO(0L, 0L, 0L, 0L, 0L,
+                        Collections.emptyList(), Collections.emptyList(),
+                        Collections.emptyList(), Collections.emptyList());
+            }
 
-    List<PopularElectiveDTO> deptElectivePopular = deptElectiveSelectionRepository
-        .findPopularDeptElectives(PageRequest.of(0, safeLimit))
-        .stream()
-        .map(p -> new PopularElectiveDTO(
-            p.getSubjectId(),
-            p.getCourseCode(),
-            p.getTitle(),
-            p.getSelectionCount(),
-            p.getFilledSeats(),
-            p.getMaxSeats(),
-            p.getCredits()))
-        .collect(Collectors.toList());
+            matchedSessionIds = matchedSessions.stream().map(Session::getId).distinct().collect(Collectors.toList());
+            matchedSemesters = matchedSessions.stream().map(Session::getSemester).distinct().collect(Collectors.toList());
+        }
 
+        long totalStudents = userRepository.countFilteredStudents(Role.STUDENT, matchedSemesters);
+        long eligibleStudents = academicStateRepository.countStudentsFiltered(true, matchedSemesters);
+        long ineligibleStudents = academicStateRepository.countStudentsFiltered(false, matchedSemesters);
 
-    return new AdminAnalyticsDTO(
-        totalStudents,
-        eligibleStudents,
-        ineligibleStudents,
-        openElectiveParticipants,
-        deptElectiveParticipants,
-        departmentCounts,
-        semesterCounts,
-        openElectivePopular,
-        deptElectivePopular
-    );
+        long openElectiveParticipants = openElectiveSelectionRepository.countDistinctStudentsFiltered(matchedSessionIds);
+        long deptElectiveParticipants = deptElectiveSelectionRepository.countDistinctStudentsFiltered(matchedSessionIds);
+
+        List<DepartmentCountDTO> departmentCounts = userRepository
+            .countStudentsByDepartmentFiltered(Role.STUDENT, matchedSemesters)
+            .stream()
+            .map(row -> new DepartmentCountDTO(
+                row.getDepartment() == null ? "" : row.getDepartment(),
+                row.getCount() == null ? 0L : row.getCount()))
+            .collect(Collectors.toList());
+
+        List<SemesterCountDTO> semesterCounts = academicStateRepository
+            .countStudentsBySemesterFiltered(matchedSemesters)
+            .stream()
+            .map(row -> new SemesterCountDTO(
+                row.getSemester() == null ? 0 : row.getSemester(),
+                row.getCount() == null ? 0L : row.getCount()))
+            .collect(Collectors.toList());
+
+        int safeLimit = Math.max(1, limit);
+        
+        List<PopularElectiveDTO> openElectivePopular = openElectiveSelectionRepository
+            .findPopularOpenElectivesFiltered(matchedSessionIds, PageRequest.of(0, safeLimit))
+            .stream()
+            .map(p -> new PopularElectiveDTO(
+                p.getSubjectId(),
+                p.getCourseCode(),
+                p.getTitle(),
+                p.getSelectionCount(),
+                p.getFilledSeats(),
+                p.getMaxSeats(),
+                p.getCredits()))
+            .collect(Collectors.toList());
+
+        List<PopularElectiveDTO> deptElectivePopular = deptElectiveSelectionRepository
+            .findPopularDeptElectivesFiltered(matchedSessionIds, PageRequest.of(0, safeLimit))
+            .stream()
+            .map(p -> new PopularElectiveDTO(
+                p.getSubjectId(),
+                p.getCourseCode(),
+                p.getTitle(),
+                p.getSelectionCount(),
+                p.getFilledSeats(),
+                p.getMaxSeats(),
+                p.getCredits()))
+            .collect(Collectors.toList());
+
+        return new AdminAnalyticsDTO(
+            totalStudents,
+            eligibleStudents,
+            ineligibleStudents,
+            openElectiveParticipants,
+            deptElectiveParticipants,
+            departmentCounts,
+            semesterCounts,
+            openElectivePopular,
+            deptElectivePopular
+        );
     }
 
     private Map<String, Long> buildSelectionCountMap(List<? extends SelectionCountProjection> rows) {

@@ -23,17 +23,22 @@ public interface DeptElectiveSelectionRepository extends JpaRepository<DeptElect
 	// Student Management (admin analytics): any dept elective submission exists for student
 	boolean existsByStudent_Id(Long studentId);
 
-	@Query("SELECT COUNT(DISTINCT s.student.id) FROM DeptElectiveSelection s")
-	long countDistinctStudents();
+	@Query("SELECT COUNT(DISTINCT s.student.id) FROM DeptElectiveSelection s JOIN s.session sess " +
+		   "WHERE (:sessionIds IS NULL OR sess.id IN :sessionIds)")
+	long countDistinctStudentsFiltered(
+			@org.springframework.data.repository.query.Param("sessionIds") List<Long> sessionIds);
 
 	@Query("SELECT subj.id as subjectId, subj.courseCode as courseCode, subj.title as title, " +
 			"COUNT(sel.id) as selectionCount, subj.filled_seats as filledSeats, subj.maxSeats as maxSeats, " +
 			"subj.credits as credits " +
-			"FROM DeptElectiveSelection sel JOIN sel.subject subj " +
+			"FROM DeptElectiveSelection sel JOIN sel.subject subj JOIN sel.session sess " +
 			"WHERE (subj.isDeleted = false OR subj.isDeleted IS NULL) " +
+			"AND (:sessionIds IS NULL OR sess.id IN :sessionIds) " +
 			"GROUP BY subj.id, subj.courseCode, subj.title, subj.filled_seats, subj.maxSeats, subj.credits " +
 			"ORDER BY COUNT(sel.id) DESC")
-	List<PopularElectiveProjection> findPopularDeptElectives(Pageable pageable);
+	List<PopularElectiveProjection> findPopularDeptElectivesFiltered(
+			@org.springframework.data.repository.query.Param("sessionIds") List<Long> sessionIds, 
+			Pageable pageable);
 
 	@Query("SELECT d FROM DeptElectiveSelection d " +
 			"JOIN FETCH d.category c " +

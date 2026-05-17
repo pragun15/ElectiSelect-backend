@@ -14,7 +14,7 @@ public class Subject {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "session_id")
+    @JoinColumn(name = "session_id", foreignKey = @ForeignKey(name = "fk_subject_session"))
     private Session session;
 
 

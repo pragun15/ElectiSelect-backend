@@ -5,10 +5,14 @@ import com.pragun.ElectiSelect.model.AdminSessionDTO;
 import com.pragun.ElectiSelect.model.AdminStudentDTO;
 import com.pragun.ElectiSelect.model.AdminStudentRowDTO;
 import com.pragun.ElectiSelect.model.AdminAnalyticsDTO;
+import com.pragun.ElectiSelect.model.AnalyticsFilterDTO;
 import com.pragun.ElectiSelect.model.PopularElectiveDTO;
 import com.pragun.ElectiSelect.model.PromotionResultDTO;
 import com.pragun.ElectiSelect.model.Session;
 import com.pragun.ElectiSelect.model.StudentImportResultDTO;
+import com.pragun.ElectiSelect.model.SubjectUploadConfirmRequestDTO;
+import com.pragun.ElectiSelect.model.SubjectUploadConfirmResultDTO;
+import com.pragun.ElectiSelect.model.SubjectUploadPreviewDTO;
 import com.pragun.ElectiSelect.service.*;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.poi.ss.usermodel.*;
@@ -54,6 +58,18 @@ public class AdminController {
         return ResponseEntity.ok(adminDashboardService.getSessionOverview());
     }
 
+    @PatchMapping("/sessions/{sessionId}/activate")
+    public ResponseEntity<Void> activateSession(@PathVariable Long sessionId) {
+        sessionService.toggleSessionStatus(sessionId, true);
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/sessions/{sessionId}/deactivate")
+    public ResponseEntity<Void> deactivateSession(@PathVariable Long sessionId) {
+        sessionService.toggleSessionStatus(sessionId, false);
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/sessions/{sessionId}/upload-subjects")
     public ResponseEntity<String> uploadSubjects(@PathVariable Long sessionId, @RequestParam("file") MultipartFile file) {
         try {
@@ -64,6 +80,19 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Error: " + e.getMessage());
         }
+    }
+
+    @PostMapping("/subjects/upload/preview")
+    public ResponseEntity<SubjectUploadPreviewDTO> previewSubjectUpload(
+            @RequestParam("sessionId") Long sessionId,
+            @RequestParam("file") MultipartFile file) throws Exception {
+        return ResponseEntity.ok(subjectService.previewSubjectUpload(file, sessionId));
+    }
+
+    @PostMapping("/subjects/upload/confirm")
+    public ResponseEntity<SubjectUploadConfirmResultDTO> confirmSubjectUpload(
+            @RequestBody SubjectUploadConfirmRequestDTO request) {
+        return ResponseEntity.ok(subjectService.confirmSubjectUpload(request));
     }
 
     @GetMapping("/sessions/export")
@@ -114,8 +143,9 @@ public class AdminController {
 
     @GetMapping("/analytics")
     public ResponseEntity<AdminAnalyticsDTO> getAdminAnalytics(
-            @RequestParam(name = "limit", defaultValue = "5") int limit) {
-        return ResponseEntity.ok(adminDashboardService.getAdminAnalytics(limit));
+            @RequestParam(name = "limit", defaultValue = "5") int limit,
+            AnalyticsFilterDTO filter) {
+        return ResponseEntity.ok(adminDashboardService.getAdminAnalytics(limit, filter));
     }
 
     // ── Student Management (System Admin) ──────────────────────────────────
