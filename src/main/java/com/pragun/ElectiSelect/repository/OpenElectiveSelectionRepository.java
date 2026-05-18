@@ -21,6 +21,8 @@ public interface OpenElectiveSelectionRepository extends JpaRepository<OpenElect
     // A student can have at most one open-elective selection (enforced by DB UNIQUE constraint).
     Optional<OpenElectiveSelection> findFirstByStudentOrderByIdDesc(User student);
 
+    List<OpenElectiveSelection> findBySessionId(Long sessionId);
+
     // Student Management (admin analytics): any open elective submission exists for student
     boolean existsByStudent_Id(Long studentId);
 
@@ -54,4 +56,18 @@ public interface OpenElectiveSelectionRepository extends JpaRepository<OpenElect
         Integer getMaxSeats();
         Integer getCredits();
     }
+
+    interface StaffExportProjection {
+        String getStudentName();
+        String getUsn();
+        String getDepartment();
+        String getSubjectTitle();
+        String getCourseCode();
+        String getCategoryName(); // For compatibility with Dept
+    }
+
+    @Query("SELECT sel.student.name as studentName, sel.student.usn as usn, sel.student.department as department, " +
+           "sel.subject.title as subjectTitle, sel.subject.courseCode as courseCode " +
+           "FROM OpenElectiveSelection sel WHERE sel.session.id = :sessionId")
+    List<StaffExportProjection> findExportDataBySessionId(@org.springframework.data.repository.query.Param("sessionId") Long sessionId);
 }

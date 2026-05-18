@@ -72,8 +72,23 @@ public class UserController {
         if (req.getDepartment() == null || req.getDepartment().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Department is required"));
         }
-        if (user.getRole() == Role.STUDENT && (req.getSemester() == null || req.getSemester() < 1)) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Semester is required for students"));
+        if (user.getRole() == Role.STUDENT) {
+            if (req.getSemester() == null || req.getSemester() < 1) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Semester is required for students"));
+            }
+            if (req.getUsn() == null || req.getUsn().trim().isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "USN is required for students"));
+            }
+
+            // Identity Consistency Validation
+            String emailPrefix = email.substring(0, email.indexOf('@')).trim().toUpperCase();
+            String enteredUsn = req.getUsn().trim().toUpperCase();
+
+            if (!emailPrefix.equals(enteredUsn)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Email and USN do not match."));
+            }
+
+            user.setUsn(enteredUsn);
         }
 
         // Update user fields

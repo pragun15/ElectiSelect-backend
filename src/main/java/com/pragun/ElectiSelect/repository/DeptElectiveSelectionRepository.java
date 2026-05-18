@@ -47,6 +47,8 @@ public interface DeptElectiveSelectionRepository extends JpaRepository<DeptElect
 	List<DeptElectiveSelection> findByStudentAndSessionWithDetails(@Param("student") User student,
 																@Param("session") Session session);
 
+	List<DeptElectiveSelection> findBySessionId(Long sessionId);
+
 	interface PopularElectiveProjection {
 		Long getSubjectId();
 		String getCourseCode();
@@ -56,4 +58,19 @@ public interface DeptElectiveSelectionRepository extends JpaRepository<DeptElect
 		Integer getMaxSeats();
 		Integer getCredits();
 	}
+
+	interface StaffExportProjection {
+		String getStudentName();
+		String getUsn();
+		String getDepartment();
+		String getSubjectTitle();
+		String getCourseCode();
+		String getCategoryName();
+	}
+
+	@Query("SELECT sel.student.name as studentName, sel.student.usn as usn, sel.student.department as department, " +
+			"sel.subject.title as subjectTitle, sel.subject.courseCode as courseCode, " +
+			"sel.category.categoryName as categoryName " +
+			"FROM DeptElectiveSelection sel LEFT JOIN sel.category WHERE sel.session.id = :sessionId")
+	List<StaffExportProjection> findExportDataBySessionId(@Param("sessionId") Long sessionId);
 }
