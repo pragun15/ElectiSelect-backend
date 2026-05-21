@@ -23,6 +23,8 @@ public interface DeptElectiveSelectionRepository extends JpaRepository<DeptElect
 	// Student Management (admin analytics): any dept elective submission exists for student
 	boolean existsByStudent_Id(Long studentId);
 
+	java.util.Optional<DeptElectiveSelection> findFirstByStudentOrderByIdDesc(User student);
+
 	@Query("SELECT COUNT(DISTINCT s.student.id) FROM DeptElectiveSelection s JOIN s.session sess " +
 		   "WHERE (:sessionIds IS NULL OR sess.id IN :sessionIds)")
 	long countDistinctStudentsFiltered(

@@ -3,6 +3,7 @@ package com.pragun.ElectiSelect.controller;
 import com.pragun.ElectiSelect.model.ProfileResponse;
 import com.pragun.ElectiSelect.model.SubjectDTO;
 import com.pragun.ElectiSelect.model.User;
+import com.pragun.ElectiSelect.repository.DeptElectiveSelectionRepository;
 import com.pragun.ElectiSelect.repository.OpenElectiveSelectionRepository;
 import com.pragun.ElectiSelect.service.RegistrationService;
 import com.pragun.ElectiSelect.service.SubjectService;
@@ -22,15 +23,18 @@ public class StudentController {
     private final SubjectService subjectService;
     private final UserService userService;
     private final OpenElectiveSelectionRepository openElectiveSelectionRepository;
+    private final DeptElectiveSelectionRepository deptElectiveSelectionRepository;
 
     public StudentController(RegistrationService registrationService,
                              SubjectService subjectService,
                              UserService userService,
-                             OpenElectiveSelectionRepository openElectiveSelectionRepository) {
+                             OpenElectiveSelectionRepository openElectiveSelectionRepository,
+                             DeptElectiveSelectionRepository deptElectiveSelectionRepository) {
         this.registrationService = registrationService;
         this.subjectService = subjectService;
         this.userService = userService;
         this.openElectiveSelectionRepository = openElectiveSelectionRepository;
+        this.deptElectiveSelectionRepository = deptElectiveSelectionRepository;
     }
 
     @GetMapping("/profile")
@@ -87,6 +91,42 @@ public class StudentController {
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).body("Error fetching selection: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/my-selections")
+    @PreAuthorize("hasAnyRole('STUDENT', 'SUPER_ADMIN')")
+    public ResponseEntity<?> getMySelections(@AuthenticationPrincipal String email) {
+        try {
+            User student = userService.getUserByEmail(email);
+            com.pragun.ElectiSelect.model.MySelectionsResponse response = new com.pragun.ElectiSelect.model.MySelectionsResponse();
+
+            openElectiveSelectionRepository.findFirstByStudentOrderByIdDesc(student).ifPresent(sel -> {
+                com.pragun.ElectiSelect.model.Subject subject = sel.getSubject();
+                boolean isActive = subject.getSession() != null && subject.getSession().getIsActive() != null && subject.getSession().getIsActive();
+                response.setOpenElective(new com.pragun.ElectiSelect.model.SelectionDetailDTO(
+                        true,
+                        subject.getCourseCode(),
+                        subject.getTitle(),
+                        isActive
+                ));
+            });
+
+            deptElectiveSelectionRepository.findFirstByStudentOrderByIdDesc(student).ifPresent(sel -> {
+                com.pragun.ElectiSelect.model.Subject subject = sel.getSubject();
+                boolean isActive = subject.getSession() != null && subject.getSession().getIsActive() != null && subject.getSession().getIsActive();
+                response.setDepartmentElective(new com.pragun.ElectiSelect.model.SelectionDetailDTO(
+                        true,
+                        subject.getCourseCode(),
+                        subject.getTitle(),
+                        isActive
+                ));
+            });
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Error fetching selections: " + e.getMessage());
         }
     }
 }
