@@ -82,7 +82,7 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
 
         // Redirect to our Frontend (React) with the token in the URL
         // Once we build the frontend, it will grab this token from the URL and save it
-        String targetUrl = "http://localhost:5173/login-success?token=" + token;
+        String targetUrl = "https://electiselect-frontend.onrender.com/login-success?token=" + token;
 
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
     }
